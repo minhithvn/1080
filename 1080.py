@@ -1782,7 +1782,7 @@ st.markdown(f"""
 
 with st.sidebar:
     st.header("⚙️ ĐIỀU KHIỂN")
-
+    
     # Chế độ phân tích
     mode = st.radio("Chọn chế độ", [
         "🔍 Phân tích chi tiết",
@@ -1792,39 +1792,39 @@ with st.sidebar:
         "📈 Backtesting",
         "💰 Phân tích dòng tiền"
     ])
-
+    
     st.markdown("---")
-
+    
     # ============================================
     # CẤU HÌNH THEO CHẾ ĐỘ
     # ============================================
-
+    
     if mode == "🔍 Phân tích chi tiết":
         st.subheader("Tìm kiếm")
         search_term = st.text_input("🔎 Tìm mã nhanh", "")
-
+        
         if search_term:
             filtered_stocks = [s for s in ALL_VN_STOCKS if search_term.upper() in s]
         else:
             sector = st.selectbox("Chọn ngành", ['Tất cả'] + list(VN_STOCKS_BY_SECTOR.keys()))
             filtered_stocks = ALL_VN_STOCKS if sector == 'Tất cả' else VN_STOCKS_BY_SECTOR.get(sector, [])
-
+        
         symbol = st.selectbox("Chọn mã", sorted(filtered_stocks))
         period = st.selectbox("Thời gian", ["1mo", "3mo", "6mo", "1y", "2y", "5y"], index=3)
-
+        
         st.markdown("---")
         show_prediction = st.checkbox("🔮 Dự đoán giá", value=True)
         if show_prediction:
             pred_days = st.slider("Số ngày dự đoán", 3, 30, 7)
         else:
             pred_days = 7
-
+        
         show_ml_trend = st.checkbox("🤖 ML Trend", value=True)
         show_money_flow = st.checkbox("💰 Phân tích dòng tiền", value=True)
-
+    
     elif mode == "🚀 Quét nhanh":
         scan_mode = st.radio("Quét", ["Theo ngành", "Top 100", "Toàn bộ"])
-
+        
         if scan_mode == "Theo ngành":
             sector = st.selectbox("Chọn ngành", list(VN_STOCKS_BY_SECTOR.keys()))
             stocks_to_scan = VN_STOCKS_BY_SECTOR[sector]
@@ -1832,33 +1832,33 @@ with st.sidebar:
             stocks_to_scan = ALL_VN_STOCKS[:100]
         else:
             stocks_to_scan = ALL_VN_STOCKS
-
+        
         min_score = st.slider("Điểm tối thiểu", 50, 95, 70)
         max_results = st.slider("Số kết quả", 10, 100, 20)
-
+    
     elif mode == "📊 So sánh":
         compare_symbols = st.multiselect("Chọn mã (tối đa 5)", ALL_VN_STOCKS, max_selections=5)
         period = st.selectbox("Thời gian", ["1mo", "3mo", "6mo", "1y", "2y"], index=2)
-
+    
     elif mode == "🤖 AI Prediction":
         sector = st.selectbox("Chọn ngành", list(VN_STOCKS_BY_SECTOR.keys()))
         symbol = st.selectbox("Chọn mã", VN_STOCKS_BY_SECTOR[sector])
         pred_days = st.slider("Số ngày dự đoán", 7, 30, 14)
-
+    
     elif mode == "📈 Backtesting":
         sector = st.selectbox("Chọn ngành", list(VN_STOCKS_BY_SECTOR.keys()))
         symbol = st.selectbox("Chọn mã", VN_STOCKS_BY_SECTOR[sector])
-        initial_capital = st.number_input("Vốn ban đầu (VND)",
-                                          min_value=10000000,
-                                          value=100000000,
+        initial_capital = st.number_input("Vốn ban đầu (VND)", 
+                                          min_value=10000000, 
+                                          value=100000000, 
                                           step=10000000)
-
+    
     else:  # Phân tích dòng tiền
         st.subheader("Phân tích dòng tiền")
-        analysis_sectors = st.multiselect("Chọn ngành",
-                                          list(VN_STOCKS_BY_SECTOR.keys()),
-                                          default=[list(VN_STOCKS_BY_SECTOR.keys())[0]])
-
+        analysis_sectors = st.multiselect("Chọn ngành", 
+                                         list(VN_STOCKS_BY_SECTOR.keys()),
+                                         default=[list(VN_STOCKS_BY_SECTOR.keys())[0]])
+    
     st.markdown("---")
     st.info("""
 💡 **Điểm số AI:**
@@ -1869,7 +1869,7 @@ with st.sidebar:
 - 35-44: BÁN thận trọng
 - <35: BÁN
     """)
-
+    
     st.markdown("---")
     popular_stocks = get_popular_stocks(5)
     if popular_stocks:
@@ -1884,41 +1884,42 @@ with st.sidebar:
 # MODE 1: PHÂN TÍCH CHI TIẾT
 if mode == "🔍 Phân tích chi tiết":
     st.header(f"📊 PHÂN TÍCH CHI TIẾT: {symbol}")
-
+    
     track_stock_search(symbol)
-
+    
     with st.spinner(f"Đang tải dữ liệu {symbol}..."):
         df, info = get_stock_data(symbol, period=period)
-
+    
     if df is not None and not df.empty:
         df = calculate_advanced_indicators(df)
         signal, score, reason, term, details = generate_advanced_signal(df, info)
         latest = df.iloc[-1]
-
+        
         predictions = None
+        pred_confidence = 0
         if show_prediction:
-            predictions = predict_future_price(df, pred_days)
-
+            predictions, pred_confidence = predict_future_price_enhanced(df, pred_days)
+        
         ml_trend = "N/A"
         ml_confidence = 0
         if show_ml_trend:
-            ml_trend, ml_confidence = predict_trend_ml(df)
-
+            ml_trend, ml_confidence = predict_trend_ml_enhanced(df, pred_days)
+        
         money_flow = None
         if show_money_flow:
             money_flow = calculate_money_flow(df)
-
+        
         # Metrics
         col1, col2, col3, col4, col5, col6 = st.columns(6)
         price_change = ((latest['close'] - df['close'].iloc[-2]) / df['close'].iloc[-2] * 100) if len(df) > 1 else 0
-
+        
         col1.metric("💰 Giá", f"{latest['close']:,.0f}", f"{price_change:+.2f}%")
-        col2.metric("📊 Volume", f"{latest['volume'] / 1000:.0f}K")
-        col3.metric("⭐ Điểm AI", f"{score}/100", f"{score - 50:+.0f}")
+        col2.metric("📊 Volume", f"{latest['volume']/1000:.0f}K")
+        col3.metric("⭐ Điểm AI", f"{score}/100", f"{score-50:+.0f}")
         col4.metric("🎯 Khuyến nghị", term)
         col5.metric("📈 RSI", f"{latest['RSI']:.1f}")
         col6.metric("💪 ADX", f"{latest['ADX']:.1f}")
-
+        
         # Signal
         if signal.startswith("MUA"):
             st.markdown(f'<div class="buy-signal">🟢 {signal} - Điểm: {score}/100</div>', unsafe_allow_html=True)
@@ -1926,7 +1927,7 @@ if mode == "🔍 Phân tích chi tiết":
             st.markdown(f'<div class="sell-signal">🔴 {signal} - Điểm: {score}/100</div>', unsafe_allow_html=True)
         else:
             st.markdown(f'<div class="hold-signal">🟡 {signal} - Điểm: {score}/100</div>', unsafe_allow_html=True)
-
+        
         # ML Prediction
         if ml_trend != "N/A":
             trend_color = "#00c853" if ml_trend == "TĂNG" else "#d32f2f"
@@ -1935,11 +1936,11 @@ if mode == "🔍 Phân tích chi tiết":
                 <h3>🤖 Dự đoán AI/ML</h3>
                 <p style="font-size:24px;">
                     Xu hướng: <span style="color:{trend_color}; font-weight:bold;">{ml_trend}</span>
-                    | Độ tin cậy: <b>{ml_confidence * 100:.1f}%</b>
+                    | Độ tin cậy: <b>{ml_confidence*100:.1f}%</b>
                 </p>
             </div>
             """, unsafe_allow_html=True)
-
+        
         # Price prediction
         if predictions is not None and len(predictions) > 0:
             pred_change = ((predictions[-1] - latest['close']) / latest['close']) * 100
@@ -1949,11 +1950,12 @@ if mode == "🔍 Phân tích chi tiết":
                 <h3>🔮 Dự đoán giá {pred_days} ngày</h3>
                 <p style="font-size:20px;">
                     Giá dự kiến: <b>{predictions[-1]:,.0f} VND</b> | 
-                    Thay đổi: <span style="color:{pred_color};">{pred_change:+.2f}%</span>
+                    Thay đổi: <span style="color:{pred_color};">{pred_change:+.2f}%</span><br>
+                    Độ tin cậy: <b>{pred_confidence*100:.1f}%</b>
                 </p>
             </div>
             """, unsafe_allow_html=True)
-
+        
         # Money Flow
         if money_flow:
             st.markdown(f"""
@@ -1967,23 +1969,23 @@ if mode == "🔍 Phân tích chi tiết":
                 </p>
             </div>
             """, unsafe_allow_html=True)
-
+        
         st.markdown("---")
-
+        
         # Tabs
         tab1, tab2, tab3, tab4, tab5 = st.tabs([
             "📈 Biểu đồ giá", "📊 Chỉ báo", "📝 Phân tích", "💼 Fundamental", "🎯 Mức giá"
         ])
-
+        
         with tab1:
             st.plotly_chart(plot_advanced_chart(df, symbol, predictions), use_container_width=True)
             st.plotly_chart(plot_volume_chart(df), use_container_width=True)
-
+        
         with tab2:
             st.plotly_chart(plot_multi_indicators(df), use_container_width=True)
             if show_money_flow:
                 st.plotly_chart(plot_money_flow_chart(df), use_container_width=True)
-
+        
         with tab3:
             col1, col2 = st.columns(2)
             with col1:
@@ -1997,50 +1999,50 @@ if mode == "🔍 Phân tích chi tiết":
             with col2:
                 st.markdown("**🔍 Lý do:**")
                 st.text(reason)
-
+        
         with tab4:
             st.subheader("💼 Dữ liệu Fundamental")
             if info and isinstance(info, dict) and len(info) > 5:
                 col1, col2, col3 = st.columns(3)
-
+                
                 with col1:
                     market_cap = info.get('marketCap')
                     if market_cap and market_cap > 0:
-                        st.metric("Market Cap", f"{market_cap / 1e9:.2f}B VND")
+                        st.metric("Market Cap", f"{market_cap/1e9:.2f}B VND")
                     else:
                         st.metric("Market Cap", "N/A")
-
+                    
                     pe = info.get('trailingPE') or info.get('forwardPE')
                     st.metric("P/E Ratio", f"{pe:.2f}" if pe and pe > 0 else "N/A")
-
+                    
                     peg = info.get('pegRatio')
                     st.metric("PEG Ratio", f"{peg:.2f}" if peg and peg > 0 else "N/A")
-
+                
                 with col2:
                     eps = info.get('trailingEps') or info.get('forwardEps')
                     st.metric("EPS", f"{eps:.2f}" if eps else "N/A")
-
+                    
                     roe = info.get('returnOnEquity')
-                    st.metric("ROE", f"{roe * 100:.2f}%" if roe else "N/A")
-
+                    st.metric("ROE", f"{roe*100:.2f}%" if roe else "N/A")
+                    
                     roa = info.get('returnOnAssets')
-                    st.metric("ROA", f"{roa * 100:.2f}%" if roa else "N/A")
-
+                    st.metric("ROA", f"{roa*100:.2f}%" if roa else "N/A")
+                
                 with col3:
                     profit_margin = info.get('profitMargins')
-                    st.metric("Profit Margin", f"{profit_margin * 100:.2f}%" if profit_margin else "N/A")
-
+                    st.metric("Profit Margin", f"{profit_margin*100:.2f}%" if profit_margin else "N/A")
+                    
                     dividend = info.get('dividendYield')
-                    st.metric("Dividend Yield", f"{dividend * 100:.2f}%" if dividend else "N/A")
-
+                    st.metric("Dividend Yield", f"{dividend*100:.2f}%" if dividend else "N/A")
+                    
                     debt_equity = info.get('debtToEquity')
                     st.metric("Debt/Equity", f"{debt_equity:.2f}" if debt_equity else "N/A")
-
+                
                 st.info("ℹ️ Lưu ý: Dữ liệu fundamental của cổ phiếu Việt Nam có thể không đầy đủ trên Yahoo Finance")
             else:
                 st.warning("⚠️ Không có đủ dữ liệu fundamental từ Yahoo Finance cho mã này")
                 st.info("💡 Bạn có thể tham khảo thêm tại: vndirect.com.vn hoặc cafef.vn")
-
+        
         with tab5:
             sr = get_support_resistance(df)
             if sr:
@@ -2048,12 +2050,11 @@ if mode == "🔍 Phân tích chi tiết":
                 col1.metric("🔴 Kháng cự 1", f"{sr['resistance'][0]:,.0f}")
                 col2.metric("💰 Hiện tại", f"{sr['current']:,.0f}")
                 col3.metric("🟢 Hỗ trợ 1", f"{sr['support'][0]:,.0f}")
-
+                
                 st.markdown("---")
                 st.markdown("**📊 Các mức giá quan trọng:**")
                 fib_df = pd.DataFrame({
-                    'Loại': ['Kháng cự 3', 'Kháng cự 2', 'Kháng cự 1', 'Giá hiện tại', 'Hỗ trợ 1', 'Hỗ trợ 2',
-                             'Hỗ trợ 3'],
+                    'Loại': ['Kháng cự 3', 'Kháng cự 2', 'Kháng cự 1', 'Giá hiện tại', 'Hỗ trợ 1', 'Hỗ trợ 2', 'Hỗ trợ 3'],
                     'Giá': [
                         f"{sr['resistance'][-1]:,.0f}" if len(sr['resistance']) > 2 else "N/A",
                         f"{sr['resistance'][1]:,.0f}" if len(sr['resistance']) > 1 else "N/A",
@@ -2071,27 +2072,27 @@ if mode == "🔍 Phân tích chi tiết":
 # MODE 2: QUÉT NHANH
 elif mode == "🚀 Quét nhanh":
     st.header("🚀 QUÉT NHANH CỔ PHIẾU")
-
+    
     st.info(f"📊 Sẽ quét {len(stocks_to_scan)} mã cổ phiếu | Điểm tối thiểu: {min_score}")
-
+    
     if st.button("🔍 BẮT ĐẦU QUÉT", type="primary", use_container_width=True):
         results = []
         progress = st.progress(0)
         status = st.empty()
-
+        
         for idx, sym in enumerate(stocks_to_scan):
-            status.text(f"Đang quét {sym}... ({idx + 1}/{len(stocks_to_scan)})")
-
+            status.text(f"Đang quét {sym}... ({idx+1}/{len(stocks_to_scan)})")
+            
             try:
                 df, _ = get_stock_data(sym, period='6mo')
                 if df is not None and not df.empty:
                     df = calculate_advanced_indicators(df)
                     signal, score, _, term, _ = generate_advanced_signal(df)
-
+                    
                     if score >= min_score:
                         latest = df.iloc[-1]
-                        ml_trend, ml_conf = predict_trend_ml(df)
-
+                        ml_trend, ml_conf = predict_trend_ml_enhanced(df, 7)
+                        
                         results.append({
                             'Mã': sym,
                             'Tín hiệu': signal,
@@ -2100,30 +2101,30 @@ elif mode == "🚀 Quét nhanh":
                             'RSI': latest['RSI'],
                             'ADX': latest['ADX'],
                             'ML': ml_trend,
-                            'Tin cậy': f"{ml_conf * 100:.0f}%"
+                            'Tin cậy': f"{ml_conf*100:.0f}%"
                         })
-
+                        
                         if len(results) >= max_results:
                             break
             except:
                 pass
-
-            progress.progress((idx + 1) / len(stocks_to_scan))
-
+            
+            progress.progress((idx+1)/len(stocks_to_scan))
+        
         progress.empty()
         status.empty()
-
+        
         if results:
             result_df = pd.DataFrame(results).sort_values('Điểm', ascending=False)
             st.success(f"✅ Tìm thấy {len(result_df)} cổ phiếu tiềm năng!")
             st.dataframe(result_df, use_container_width=True, height=600)
-
+            
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("🎯 Điểm TB", f"{result_df['Điểm'].mean():.1f}")
             col2.metric("⭐ Cao nhất", f"{result_df['Điểm'].max():.0f}")
             col3.metric("📊 MUA", len(result_df[result_df['Tín hiệu'].str.contains('MUA')]))
             col4.metric("🤖 ML TĂNG", len(result_df[result_df['ML'] == 'TĂNG']))
-
+            
             csv = result_df.to_csv(index=False, encoding='utf-8-sig')
             st.download_button("📥 Tải CSV", csv, f"scan_{datetime.now():%Y%m%d_%H%M}.csv", "text/csv")
         else:
@@ -2132,20 +2133,20 @@ elif mode == "🚀 Quét nhanh":
 # MODE 3: SO SÁNH
 elif mode == "📊 So sánh":
     st.header("📊 SO SÁNH CỔ PHIẾU")
-
+    
     if compare_symbols and len(compare_symbols) >= 2:
         with st.spinner("Đang tải dữ liệu..."):
             stocks_data = {}
             comparison_data = []
-
+            
             for sym in compare_symbols:
                 df, _ = get_stock_data(sym, period=period)
                 if df is not None and not df.empty:
                     df = calculate_advanced_indicators(df)
                     signal, score, _, term, _ = generate_advanced_signal(df)
                     latest = df.iloc[-1]
-                    ml_trend, ml_conf = predict_trend_ml(df)
-
+                    ml_trend, ml_conf = predict_trend_ml_enhanced(df, 7)
+                    
                     stocks_data[sym] = df
                     comparison_data.append({
                         'Mã': sym,
@@ -2157,14 +2158,14 @@ elif mode == "📊 So sánh":
                         'Tín hiệu': signal,
                         'ML': ml_trend
                     })
-
+        
         if comparison_data:
             comp_df = pd.DataFrame(comparison_data)
             st.dataframe(comp_df, use_container_width=True)
-
+            
             st.subheader("📈 So sánh biến động giá")
             st.plotly_chart(plot_comparison_chart(stocks_data, period), use_container_width=True)
-
+            
             if len(stocks_data) >= 2:
                 st.subheader("🔗 Ma trận tương quan")
                 st.plotly_chart(plot_correlation_matrix(stocks_data), use_container_width=True)
@@ -2174,49 +2175,50 @@ elif mode == "📊 So sánh":
 # MODE 4: AI PREDICTION
 elif mode == "🤖 AI Prediction":
     st.header(f"🤖 AI PREDICTION: {symbol}")
-
+    
     with st.spinner("Đang phân tích..."):
         df, _ = get_stock_data(symbol, period='1y')
-
+    
     if df is not None and not df.empty:
         df = calculate_advanced_indicators(df)
         signal, score, _, _, _ = generate_advanced_signal(df)
         latest = df.iloc[-1]
-
+        
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("💰 Giá", f"{latest['close']:,.0f}")
         col2.metric("⭐ Điểm AI", f"{score}/100")
         col3.metric("📈 RSI", f"{latest['RSI']:.1f}")
         col4.metric("💪 ADX", f"{latest['ADX']:.1f}")
-
-        ml_trend, ml_conf = predict_trend_ml(df)
-        trend_color = "#00c853" if ml_trend == "TĂNG" else "#d32f2f"
-
+        
+        ml_trend, ml_conf = predict_trend_ml_enhanced(df, pred_days)
+        trend_color = "#00c853" if "TĂNG" in ml_trend else "#d32f2f"
+        
         st.markdown(f"""
         <div class="prediction-box">
             <h2>🤖 Machine Learning Analysis</h2>
             <p style="font-size:28px;">
                 Xu hướng: <span style="color:{trend_color};">{ml_trend}</span>
-                | Độ tin cậy: <b>{ml_conf * 100:.1f}%</b>
+                | Độ tin cậy: <b>{ml_conf*100:.1f}%</b>
             </p>
         </div>
         """, unsafe_allow_html=True)
-
-        predictions = predict_future_price(df, pred_days)
+        
+        predictions, pred_confidence = predict_future_price_enhanced(df, pred_days)
         if predictions is not None:
             pred_change = ((predictions[-1] - latest['close']) / latest['close']) * 100
             pred_color = "#00c853" if pred_change > 0 else "#d32f2f"
-
+            
             st.markdown(f"""
             <div class="prediction-box">
                 <h2>🔮 Dự đoán giá {pred_days} ngày</h2>
                 <p style="font-size:24px;">
                     Giá dự kiến: <b>{predictions[-1]:,.0f} VND</b> | 
-                    <span style="color:{pred_color};">{pred_change:+.2f}%</span>
+                    <span style="color:{pred_color};">{pred_change:+.2f}%</span><br>
+                    Độ tin cậy: <b>{pred_confidence*100:.1f}%</b>
                 </p>
             </div>
             """, unsafe_allow_html=True)
-
+            
             st.plotly_chart(plot_advanced_chart(df.tail(90), symbol, predictions), use_container_width=True)
     else:
         st.error("❌ Không thể tải dữ liệu")
@@ -2224,32 +2226,32 @@ elif mode == "🤖 AI Prediction":
 # MODE 5: BACKTESTING
 elif mode == "📈 Backtesting":
     st.header(f"📈 BACKTESTING: {symbol}")
-
+    
     with st.spinner("Đang chạy backtest..."):
         df, _ = get_stock_data(symbol, period='2y')
-
+    
     if df is not None and not df.empty:
         df = calculate_advanced_indicators(df)
         backtest_results = simple_backtest(df, initial_capital)
-
+        
         if backtest_results:
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("💰 Vốn đầu", f"{initial_capital:,.0f}")
             col2.metric("💵 Giá trị cuối", f"{backtest_results['final_value']:,.0f}")
             col3.metric("📈 ROI", f"{backtest_results['roi']:.2f}%")
             col4.metric("🔄 Giao dịch", backtest_results['num_trades'])
-
+            
             buy_hold = ((df.iloc[-1]['close'] - df.iloc[50]['close']) / df.iloc[50]['close']) * 100
-
+            
             col1, col2 = st.columns(2)
             col1.metric("🤖 Chiến lược AI", f"{backtest_results['roi']:.2f}%")
             col2.metric("🎯 Buy & Hold", f"{buy_hold:.2f}%")
-
+            
             if backtest_results['roi'] > buy_hold:
                 st.success(f"✅ AI tốt hơn: +{(backtest_results['roi'] - buy_hold):.2f}%")
             else:
                 st.warning(f"⚠️ Buy & Hold tốt hơn: +{(buy_hold - backtest_results['roi']):.2f}%")
-
+            
             if backtest_results['trades']:
                 st.subheader("📋 Lịch sử giao dịch")
                 trades_df = pd.DataFrame(backtest_results['trades'])
@@ -2261,26 +2263,26 @@ elif mode == "📈 Backtesting":
 # MODE 6: PHÂN TÍCH DÒNG TIỀN
 else:
     st.header("💰 PHÂN TÍCH DÒNG TIỀN THỊ TRƯỜNG")
-
+    
     if st.button("🔍 BẮT ĐẦU PHÂN TÍCH", type="primary"):
         all_stocks = []
         for sector in analysis_sectors:
             all_stocks.extend(VN_STOCKS_BY_SECTOR[sector])
-
+        
         progress = st.progress(0)
         status = st.empty()
         results = []
-
+        
         for idx, sym in enumerate(all_stocks[:50]):  # Giới hạn 50 mã
             status.text(f"Đang phân tích {sym}...")
-
+            
             try:
                 df, _ = get_stock_data(sym, period='3mo')
                 if df is not None and not df.empty:
                     df = calculate_advanced_indicators(df)
                     money_flow = calculate_money_flow(df)
                     latest = df.iloc[-1]
-
+                    
                     results.append({
                         'Mã': sym,
                         'Giá': latest['close'],
@@ -2291,24 +2293,24 @@ else:
                     })
             except:
                 pass
-
-            progress.progress((idx + 1) / min(len(all_stocks), 50))
-
+            
+            progress.progress((idx+1)/min(len(all_stocks), 50))
+        
         progress.empty()
         status.empty()
-
+        
         if results:
             result_df = pd.DataFrame(results)
             st.success(f"✅ Phân tích {len(result_df)} mã cổ phiếu")
             st.dataframe(result_df, use_container_width=True, height=600)
-
+            
             st.subheader("📊 Phân phối MFI")
             mfi_ranges = {
                 'Quá bán (<30)': len(result_df[result_df['MFI'] < 30]),
                 'Trung lập (30-70)': len(result_df[(result_df['MFI'] >= 30) & (result_df['MFI'] <= 70)]),
                 'Quá mua (>70)': len(result_df[result_df['MFI'] > 70])
             }
-
+            
             col1, col2, col3 = st.columns(3)
             col1.metric("💰 Quá bán", mfi_ranges['Quá bán (<30)'])
             col2.metric("📊 Trung lập", mfi_ranges['Trung lập (30-70)'])
@@ -2349,5 +2351,5 @@ st.info("""
 - Khuyến nghị: Tham khảo thêm tại vndirect.com.vn, cafef.vn, tcbs.com.vn
 """)
 
-
 print("✅ App UI loaded successfully!")
+
