@@ -1852,114 +1852,78 @@ def calculate_holding_period(df, signal, score, details):
 def display_holding_recommendation(holding_info):
     """Hiển thị khuyến nghị"""
     if holding_info is None:
-        return None
+        return
 
+    # Background color theo action
     action_colors = {
         "NẮM GIỮ DÀI HẠN": "#00c853",
         "NẮM GIỮ TRUNG HẠN": "#66BB6A",
         "NẮM GIỮ NGẮN HẠN": "#FFA726",
-        "NẮM GIỮ NGẮN": "#FFA726",
-        "CHỐT LỜI SỚM": "#FF9800",
-        "THEO DÕI SÁT": "#FFC107",
-        "CÂN NHẮC BÁN": "#EF5350",
         "BÁN NGAY": "#d32f2f"
     }
+    color = action_colors.get(holding_info['recommended_action'], "#FFA726")
 
-    action_color = action_colors.get(holding_info['recommended_action'], "#757575")
+    # Container với màu nền
+    st.markdown(f"""
+    <style>
+    .holding-container {{
+        background: linear-gradient(135deg, {color} 0%, {color}DD 100%);
+        padding: 25px;
+        border-radius: 15px;
+        color: white;
+        margin: 20px 0;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
 
-    target_percent = ((holding_info['target_price'] - holding_info['current_price']) /
+    with st.container():
+        st.markdown('<div class="holding-container">', unsafe_allow_html=True)
+
+        st.markdown("### 🕐 KHUYẾN NGHỊ THỜI GIAN NẮM GIỮ")
+
+        # Action chính
+        st.markdown(f"## {holding_info['recommended_action']}")
+
+        # 3 cột thời gian
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric("Tối thiểu", f"{holding_info['min_days']} ngày")
+            st.caption(holding_info['target_date_min'])
+
+        with col2:
+            st.metric("⭐ Khuyến nghị", f"{holding_info['base_days']} ngày")
+            st.caption(holding_info['target_date_base'])
+
+        with col3:
+            st.metric("Tối đa", f"{holding_info['max_days']} ngày")
+            st.caption(holding_info['target_date_max'])
+
+        # Target & Stop Loss
+        st.markdown("---")
+        target_pct = ((holding_info['target_price'] - holding_info['current_price']) /
                       holding_info['current_price'] * 100)
-    stop_loss_percent = ((holding_info['stop_loss'] - holding_info['current_price']) /
-                         holding_info['current_price'] * 100)
+        stop_pct = ((holding_info['stop_loss'] - holding_info['current_price']) /
+                    holding_info['current_price'] * 100)
 
-    html = f"""
-    <div style="background: linear-gradient(135deg, {action_color} 0%, {action_color}DD 100%); 
-                padding: 25px; border-radius: 15px; color: white; margin: 20px 0;
-                box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
+        col1, col2 = st.columns(2)
+        col1.metric("🎯 Target", f"{holding_info['target_price']:,.0f} VND", f"{target_pct:+.1f}%")
+        col2.metric("🛑 Stop Loss", f"{holding_info['stop_loss']:,.0f} VND", f"{stop_pct:.1f}%")
 
-        <h2 style="margin: 0 0 20px 0; font-size: 28px;">
-            🕐 KHUYẾN NGHỊ THỜI GIAN NẮM GIỮ
-        </h2>
+        # Phân tích
+        st.markdown("---")
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Xu hướng", holding_info['trend_type'])
+        col2.metric("Biến động", holding_info['volatility_level'])
+        col3.metric("Rủi ro", holding_info['risk_level'])
 
-        <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 10px; margin: 15px 0;">
-            <h3 style="margin: 0 0 10px 0; font-size: 32px; text-align: center;">
-                {holding_info['recommended_action']}
-            </h3>
-        </div>
+        # Lý do
+        st.markdown("---")
+        st.markdown("**💡 Lý do:**")
+        for reason in holding_info['reasons']:
+            st.markdown(f"- {reason}")
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin: 20px 0;">
-            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; text-align: center;">
-                <div style="font-size: 14px; opacity: 0.9;">Tối thiểu</div>
-                <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{holding_info['min_days']} ngày</div>
-                <div style="font-size: 12px; opacity: 0.8;">đến {holding_info['target_date_min']}</div>
-            </div>
-            <div style="background: rgba(255,255,255,0.2); padding: 15px; border-radius: 8px; text-align: center; 
-                        border: 2px solid rgba(255,255,255,0.5);">
-                <div style="font-size: 14px; opacity: 0.9;">Khuyến nghị</div>
-                <div style="font-size: 28px; font-weight: bold; margin: 5px 0;">{holding_info['base_days']} ngày</div>
-                <div style="font-size: 12px; opacity: 0.8;">đến {holding_info['target_date_base']}</div>
-            </div>
-            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; text-align: center;">
-                <div style="font-size: 14px; opacity: 0.9;">Tối đa</div>
-                <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{holding_info['max_days']} ngày</div>
-                <div style="font-size: 12px; opacity: 0.8;">đến {holding_info['target_date_max']}</div>
-            </div>
-        </div>
-
-        <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 10px; margin: 15px 0;">
-            <h4 style="margin: 0 0 15px 0; font-size: 18px;">📊 MỤC TIÊU & STOP LOSS</h4>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                <div>
-                    <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">🎯 Mục tiêu giá:</div>
-                    <div style="font-size: 22px; font-weight: bold;">
-                        {holding_info['target_price']:,.0f} VND
-                        <span style="font-size: 16px; margin-left: 10px;">({target_percent:+.1f}%)</span>
-                    </div>
-                </div>
-                <div>
-                    <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">🛑 Stop Loss:</div>
-                    <div style="font-size: 22px; font-weight: bold;">
-                        {holding_info['stop_loss']:,.0f} VND
-                        <span style="font-size: 16px; margin-left: 10px;">({stop_loss_percent:.1f}%)</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 10px; margin: 15px 0;">
-            <h4 style="margin: 0 0 15px 0; font-size: 18px;">📈 PHÂN TÍCH</h4>
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
-                <div>
-                    <div style="font-size: 13px; opacity: 0.8;">Xu hướng</div>
-                    <div style="font-size: 18px; font-weight: bold;">{holding_info['trend_type']}</div>
-                </div>
-                <div>
-                    <div style="font-size: 13px; opacity: 0.8;">Độ biến động</div>
-                    <div style="font-size: 18px; font-weight: bold;">{holding_info['volatility_level']}</div>
-                </div>
-                <div>
-                    <div style="font-size: 13px; opacity: 0.8;">Rủi ro</div>
-                    <div style="font-size: 18px; font-weight: bold;">{holding_info['risk_level']}</div>
-                </div>
-            </div>
-        </div>
-
-        <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 10px;">
-            <h4 style="margin: 0 0 10px 0; font-size: 18px;">💡 LÝ DO:</h4>
-            <div style="font-size: 15px; line-height: 1.8;">
-                {"<br>".join(holding_info['reasons'])}
-            </div>
-        </div>
-    </div>
-    """
-
-    # ✅ SỬA: RENDER TRỰC TIẾP THAY VÌ RETURN
-    st.markdown(html, unsafe_allow_html=True)
-
-    return html
-
-
-print("✅ Holding Period Module loaded!")
+        st.markdown('</div>', unsafe_allow_html=True)
 # ============================================
 # PHẦN 6: HÀM VẼ BIỂU ĐỒ (FIXED)
 # ============================================
@@ -2351,423 +2315,7 @@ def plot_correlation_matrix(stocks_data):
 
 
 print("✅ Chart plotting functions loaded (FIXED)")
-# ============================================
-# MODULE: KHUYẾN NGHỊ THỜI GIAN NẮM GIỮ CỔ PHIẾU
-# ============================================
 
-import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
-
-
-def calculate_holding_period(df, signal, score, details):
-    """
-    Tính toán thời gian nắm giữ tối ưu dựa trên:
-    1. Xu hướng (ADX, Supertrend, MAs)
-    2. Volatility (ATR, Bollinger Width)
-    3. Momentum (RSI, MACD)
-    4. Patterns & Cycles
-
-    Returns:
-        holding_period: Dict với thông tin chi tiết
-    """
-    if df is None or df.empty or len(df) < 50:
-        return None
-
-    latest = df.iloc[-1]
-
-    # ========================================
-    # BƯỚC 1: XÁC ĐỊNH LOẠI XU HƯỚNG
-    # ========================================
-
-    trend_type = "SIDEWAY"
-    trend_strength = 0
-
-    # Kiểm tra ADX
-    if pd.notna(latest.get('ADX')):
-        adx = latest['ADX']
-        if adx > 40:
-            trend_strength = 3  # Rất mạnh
-        elif adx > 25:
-            trend_strength = 2  # Mạnh
-        elif adx > 20:
-            trend_strength = 1  # Trung bình
-        else:
-            trend_strength = 0  # Yếu/Sideway
-
-    # Kiểm tra Supertrend
-    if pd.notna(latest.get('Supertrend_direction')):
-        if latest['Supertrend_direction'] == 1:
-            trend_type = "TĂNG"
-        elif latest['Supertrend_direction'] == -1:
-            trend_type = "GIẢM"
-
-    # Kiểm tra MAs
-    if pd.notna(latest.get('MA5')) and pd.notna(latest.get('MA20')) and pd.notna(latest.get('MA50')):
-        if latest['MA5'] > latest['MA20'] > latest['MA50']:
-            if trend_type == "SIDEWAY":
-                trend_type = "TĂNG"
-        elif latest['MA5'] < latest['MA20'] < latest['MA50']:
-            if trend_type == "SIDEWAY":
-                trend_type = "GIẢM"
-
-    # ========================================
-    # BƯỚC 2: TÍNH VOLATILITY (Độ biến động)
-    # ========================================
-
-    volatility_level = "TRUNG BÌNH"
-
-    if pd.notna(latest.get('ATR')) and pd.notna(latest.get('close')):
-        atr_percent = (latest['ATR'] / latest['close']) * 100
-
-        if atr_percent > 5:
-            volatility_level = "RẤT CAO"
-        elif atr_percent > 3:
-            volatility_level = "CAO"
-        elif atr_percent > 1.5:
-            volatility_level = "TRUNG BÌNH"
-        else:
-            volatility_level = "THẤP"
-
-    # Kiểm tra Bollinger Width
-    if pd.notna(latest.get('BB_width')):
-        if latest['BB_width'] > 0.15:
-            if volatility_level in ["THẤP", "TRUNG BÌNH"]:
-                volatility_level = "CAO"
-        elif latest['BB_width'] < 0.05:
-            volatility_level = "RẤT THẤP"
-
-    # ========================================
-    # BƯỚC 3: ĐÁNH GIÁ VỊ TRÍ TRONG XU HƯỚNG
-    # ========================================
-
-    trend_position = "GIỮA"
-
-    if pd.notna(latest.get('RSI')):
-        rsi = latest['RSI']
-        if rsi < 30:
-            trend_position = "ĐẦU"  # Vừa oversold, xu hướng mới bắt đầu
-        elif rsi > 70:
-            trend_position = "CUỐI"  # Đã overbought, gần hết xu hướng
-        elif 40 <= rsi <= 60:
-            trend_position = "GIỮA"  # Đang ở giữa xu hướng
-
-    # Kiểm tra MACD
-    if pd.notna(latest.get('MACD')) and pd.notna(latest.get('MACD_signal')):
-        prev = df.iloc[-2]
-        # Golden Cross mới xảy ra
-        if latest['MACD'] > latest['MACD_signal'] and prev['MACD'] <= prev['MACD_signal']:
-            trend_position = "ĐẦU"
-        # Death Cross mới xảy ra
-        elif latest['MACD'] < latest['MACD_signal'] and prev['MACD'] >= prev['MACD_signal']:
-            trend_position = "CUỐI"
-
-    # ========================================
-    # BƯỚC 4: TÍNH TOÁN THỜI GIAN NẮM GIỮ
-    # ========================================
-
-    base_days = 0
-    min_days = 0
-    max_days = 0
-    recommended_action = ""
-    reasons = []
-
-    # === XU HƯỚNG TĂNG ===
-    if trend_type == "TĂNG" and signal in ["MUA MẠNH", "MUA", "MUA (thận trọng)"]:
-
-        if trend_position == "ĐẦU":
-            if trend_strength >= 2:
-                # Xu hướng tăng mạnh, mới bắt đầu
-                base_days = 30
-                min_days = 20
-                max_days = 60
-                recommended_action = "NẮM GIỮ DÀI HẠN"
-                reasons.append("✅ Xu hướng tăng mạnh mới bắt đầu")
-                reasons.append("💰 Còn nhiều tiềm năng tăng trưởng")
-            else:
-                # Xu hướng tăng yếu
-                base_days = 10
-                min_days = 5
-                max_days = 20
-                recommended_action = "NẮM GIỮ NGẮN HẠN"
-                reasons.append("📈 Xu hướng tăng yếu")
-                reasons.append("⚠️ Cần theo dõi sát")
-
-        elif trend_position == "GIỮA":
-            if trend_strength >= 2:
-                # Xu hướng đang ở giữa, vẫn mạnh
-                base_days = 20
-                min_days = 10
-                max_days = 40
-                recommended_action = "NẮM GIỮ TRUNG HẠN"
-                reasons.append("✅ Xu hướng tăng đang ổn định")
-                reasons.append("📊 Có thể tiếp tục tăng")
-            else:
-                base_days = 7
-                min_days = 3
-                max_days = 14
-                recommended_action = "NẮM GIỮ NGẮN"
-                reasons.append("⚠️ Xu hướng không rõ ràng")
-
-        else:  # CUỐI
-            base_days = 3
-            min_days = 1
-            max_days = 7
-            recommended_action = "CHỐT LỜI SỚM"
-            reasons.append("⚠️⚠️ Xu hướng tăng gần hết")
-            reasons.append("💡 Nên chốt lời, đừng tham")
-            reasons.append("📉 RSI/MACD cho thấy sắp đảo chiều")
-
-    # === XU HƯỚNG GIẢM ===
-    elif trend_type == "GIẢM" and signal in ["BÁN", "BÁN (thận trọng)"]:
-        base_days = 0
-        min_days = 0
-        max_days = 0
-        recommended_action = "BÁN NGAY"
-        reasons.append("🚫 Xu hướng giảm đang hoạt động")
-        reasons.append("💡 Không nên nắm giữ")
-        reasons.append("⏰ Bán càng sớm càng tốt để hạn chế thua lỗ")
-
-    # === SIDEWAY / GIỮ ===
-    else:
-        if signal == "GIỮ":
-            base_days = 5
-            min_days = 3
-            max_days = 10
-            recommended_action = "THEO DÕI SÁT"
-            reasons.append("⚠️ Thị trường đang sideway")
-            reasons.append("📊 Chưa có xu hướng rõ ràng")
-            reasons.append("💡 Chờ tín hiệu rõ ràng hơn")
-        else:
-            base_days = 1
-            min_days = 0
-            max_days = 3
-            recommended_action = "CÂN NHẮC BÁN"
-            reasons.append("⚠️ Tín hiệu không rõ ràng")
-            reasons.append("💡 Nên cắt lỗ nếu giá giảm")
-
-    # ========================================
-    # BƯỚC 5: ĐIỀU CHỈNH THEO VOLATILITY
-    # ========================================
-
-    volatility_adjustment = 1.0
-
-    if volatility_level == "RẤT CAO":
-        volatility_adjustment = 0.6  # Giảm thời gian nắm giữ
-        reasons.append("⚠️ Biến động rất cao → Giảm thời gian nắm giữ")
-    elif volatility_level == "CAO":
-        volatility_adjustment = 0.8
-        reasons.append("⚠️ Biến động cao → Cần thận trọng")
-    elif volatility_level == "THẤP":
-        volatility_adjustment = 1.2  # Tăng thời gian nắm giữ
-        reasons.append("✅ Biến động thấp → An toàn hơn")
-    elif volatility_level == "RẤT THẤP":
-        volatility_adjustment = 1.4
-        reasons.append("✅ Biến động rất thấp → Rất an toàn")
-
-    base_days = int(base_days * volatility_adjustment)
-    min_days = int(min_days * volatility_adjustment)
-    max_days = int(max_days * volatility_adjustment)
-
-    # ========================================
-    # BƯỚC 6: ĐIỀU CHỈNH THEO SCORE
-    # ========================================
-
-    if score >= 80:
-        reasons.append("✅✅ Điểm AI rất cao → Tự tin nắm giữ")
-    elif score >= 70:
-        reasons.append("✅ Điểm AI tốt → Có thể nắm giữ")
-    elif score < 50:
-        base_days = max(1, int(base_days * 0.5))
-        reasons.append("⚠️ Điểm AI thấp → Giảm thời gian nắm giữ")
-
-    # ========================================
-    # BƯỚC 7: TÍNH TARGET PRICE (Mục tiêu giá)
-    # ========================================
-
-    current_price = latest['close']
-
-    # Dựa trên ATR và thời gian
-    if pd.notna(latest.get('ATR')):
-        atr = latest['ATR']
-
-        if trend_type == "TĂNG":
-            # Target = Price + (ATR * số ngày * hệ số)
-            target_price = current_price + (atr * (base_days / 5) * 1.5)
-            stop_loss = current_price - (atr * 2)
-        else:
-            target_price = current_price
-            stop_loss = current_price - (atr * 1.5)
-    else:
-        target_price = current_price * 1.05
-        stop_loss = current_price * 0.97
-
-    # ========================================
-    # BƯỚC 8: XÁC ĐỊNH MỐC THỜI GIAN CỤ THỂ
-    # ========================================
-
-    today = datetime.now()
-    target_date_min = today + timedelta(days=min_days)
-    target_date_base = today + timedelta(days=base_days)
-    target_date_max = today + timedelta(days=max_days)
-
-    # ========================================
-    # BƯỚC 9: ĐÁNH GIÁ RỦI RO
-    # ========================================
-
-    risk_level = "TRUNG BÌNH"
-
-    if volatility_level in ["RẤT CAO", "CAO"] and trend_strength < 2:
-        risk_level = "CAO"
-    elif volatility_level == "RẤT THẤP" and trend_strength >= 2:
-        risk_level = "THẤP"
-
-    # ========================================
-    # KẾT QUẢ
-    # ========================================
-
-    return {
-        'base_days': base_days,
-        'min_days': min_days,
-        'max_days': max_days,
-        'recommended_action': recommended_action,
-        'trend_type': trend_type,
-        'trend_strength': trend_strength,
-        'trend_position': trend_position,
-        'volatility_level': volatility_level,
-        'risk_level': risk_level,
-        'target_date_min': target_date_min.strftime('%d/%m/%Y'),
-        'target_date_base': target_date_base.strftime('%d/%m/%Y'),
-        'target_date_max': target_date_max.strftime('%d/%m/%Y'),
-        'target_price': target_price,
-        'stop_loss': stop_loss,
-        'current_price': current_price,
-        'reasons': reasons
-    }
-
-
-# ============================================
-# HÀM HIỂN THỊ KHUYẾN NGHỊ
-# ============================================
-
-def display_holding_recommendation(holding_info):
-    """
-    Tạo HTML để hiển thị khuyến nghị thời gian nắm giữ
-    """
-    if holding_info is None:
-        return None
-
-    # Màu sắc theo action
-    action_colors = {
-        "NẮM GIỮ DÀI HẠN": "#00c853",
-        "NẮM GIỮ TRUNG HẠN": "#66BB6A",
-        "NẮM GIỮ NGẮN HẠN": "#FFA726",
-        "NẮM GIỮ NGẮN": "#FFA726",
-        "CHỐT LỜI SỚM": "#FF9800",
-        "THEO DÕI SÁT": "#FFC107",
-        "CÂN NHẮC BÁN": "#EF5350",
-        "BÁN NGAY": "#d32f2f"
-    }
-
-    action_color = action_colors.get(holding_info['recommended_action'], "#757575")
-
-    # Tính % target và stop loss
-    target_percent = ((holding_info['target_price'] - holding_info['current_price']) /
-                      holding_info['current_price'] * 100)
-    stop_loss_percent = ((holding_info['stop_loss'] - holding_info['current_price']) /
-                         holding_info['current_price'] * 100)
-
-    html = f"""
-    <div style="background: linear-gradient(135deg, {action_color} 0%, {action_color}DD 100%); 
-                padding: 25px; border-radius: 15px; color: white; margin: 20px 0;
-                box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
-
-        <h2 style="margin: 0 0 20px 0; font-size: 28px;">
-            🕐 KHUYẾN NGHỊ THỜI GIAN NẮM GIỮ
-        </h2>
-
-        <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 10px; margin: 15px 0;">
-            <h3 style="margin: 0 0 10px 0; font-size: 32px; text-align: center;">
-                {holding_info['recommended_action']}
-            </h3>
-        </div>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin: 20px 0;">
-            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; text-align: center;">
-                <div style="font-size: 14px; opacity: 0.9;">Tối thiểu</div>
-                <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{holding_info['min_days']} ngày</div>
-                <div style="font-size: 12px; opacity: 0.8;">đến {holding_info['target_date_min']}</div>
-            </div>
-            <div style="background: rgba(255,255,255,0.2); padding: 15px; border-radius: 8px; text-align: center; 
-                        border: 2px solid rgba(255,255,255,0.5);">
-                <div style="font-size: 14px; opacity: 0.9;">Khuyến nghị</div>
-                <div style="font-size: 28px; font-weight: bold; margin: 5px 0;">{holding_info['base_days']} ngày</div>
-                <div style="font-size: 12px; opacity: 0.8;">đến {holding_info['target_date_base']}</div>
-            </div>
-            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; text-align: center;">
-                <div style="font-size: 14px; opacity: 0.9;">Tối đa</div>
-                <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{holding_info['max_days']} ngày</div>
-                <div style="font-size: 12px; opacity: 0.8;">đến {holding_info['target_date_max']}</div>
-            </div>
-        </div>
-
-        <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 10px; margin: 15px 0;">
-            <h4 style="margin: 0 0 15px 0; font-size: 18px;">📊 MỤC TIÊU & STOP LOSS</h4>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                <div>
-                    <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">🎯 Mục tiêu giá:</div>
-                    <div style="font-size: 22px; font-weight: bold;">
-                        {holding_info['target_price']:,.0f} VND
-                        <span style="font-size: 16px; margin-left: 10px;">({target_percent:+.1f}%)</span>
-                    </div>
-                </div>
-                <div>
-                    <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">🛑 Stop Loss:</div>
-                    <div style="font-size: 22px; font-weight: bold;">
-                        {holding_info['stop_loss']:,.0f} VND
-                        <span style="font-size: 16px; margin-left: 10px;">({stop_loss_percent:.1f}%)</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 10px; margin: 15px 0;">
-            <h4 style="margin: 0 0 15px 0; font-size: 18px;">📈 PHÂN TÍCH THỊ TRƯỜNG</h4>
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px;">
-                <div>
-                    <div style="font-size: 13px; opacity: 0.8;">Xu hướng</div>
-                    <div style="font-size: 18px; font-weight: bold;">{holding_info['trend_type']}</div>
-                </div>
-                <div>
-                    <div style="font-size: 13px; opacity: 0.8;">Độ biến động</div>
-                    <div style="font-size: 18px; font-weight: bold;">{holding_info['volatility_level']}</div>
-                </div>
-                <div>
-                    <div style="font-size: 13px; opacity: 0.8;">Rủi ro</div>
-                    <div style="font-size: 18px; font-weight: bold;">{holding_info['risk_level']}</div>
-                </div>
-            </div>
-        </div>
-
-        <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 10px; margin: 15px 0;">
-            <h4 style="margin: 0 0 10px 0; font-size: 18px;">💡 LÝ DO CHI TIẾT:</h4>
-            <div style="font-size: 15px; line-height: 1.8;">
-                {"<br>".join(holding_info['reasons'])}
-            </div>
-        </div>
-
-        <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; 
-                    margin-top: 20px; font-size: 13px; opacity: 0.9;">
-            ⚠️ <b>Lưu ý:</b> Đây là khuyến nghị dựa trên phân tích kỹ thuật. 
-            Thực tế thị trường có thể khác biệt. Luôn đặt stop loss và theo dõi sát.
-        </div>
-    </div>
-    """
-
-    return html
-
-
-print("✅ Holding Period Recommendation Module loaded!")
 # ============================================
 # PHẦN 7: UI CHÍNH - GIAO DIỆN HOÀN CHỈNH (FIXED)
 # ============================================
@@ -2982,13 +2530,12 @@ if mode == "🔍 Phân tích chi tiết":
             </div>
             """, unsafe_allow_html=True)
 
-        # HOLDING PERIOD RECOMMENDATION - MỚI!
+        # HOLDING PERIOD RECOMMENDATION
         holding_info = calculate_holding_period(df, signal, score, details)
         if holding_info:
-            display_holding_recommendation(holding_info)  # ✅ GỌI TRỰC TIẾP
+            display_holding_recommendation(holding_info)
 
         st.markdown("---")
-
         # Tabs
         tab1, tab2, tab3, tab4, tab5 = st.tabs([
             "📈 Biểu đồ giá", "📊 Chỉ báo", "📝 Phân tích", "💼 Fundamental", "🎯 Mức giá"
