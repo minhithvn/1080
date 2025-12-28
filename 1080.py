@@ -711,7 +711,7 @@ print(f"   - Session ID: {st.session_state.session_id[:8]}...")
 print(f"   - Total visits: {st.session_state.visitor_data.get('total_visits', 0)}")
 print(f"   - Online now: {st.session_state.online_count}")
 # ============================================
-# PHẦN 4 ENHANCED: 30+ CHỈ SỐ & DỰ ĐOÁN CẢI TIẾN
+# PHẦN 4 ULTIMATE: 60+ CHỈ BÁO KỸ THUẬT
 # ============================================
 
 import yfinance as yf
@@ -750,66 +750,119 @@ def get_stock_data(symbol, period='1y'):
 
 
 # ============================================
-# 4B: TÍNH TOÁN 30+ CHỈ BÁO NÂNG CAO
+# 4B: 60+ CHỈ BÁO KỸ THUẬT
 # ============================================
 
 def calculate_advanced_indicators(df):
-    """Tính 30+ chỉ báo kỹ thuật"""
+    """Tính toán 60+ chỉ báo kỹ thuật"""
     if df is None or df.empty:
         return df
 
-    # ========== NHÓM 1: MOVING AVERAGES (6 chỉ số) ==========
+    # ========== NHÓM 1: MOVING AVERAGES (9 chỉ báo) ==========
     df['MA5'] = df['close'].rolling(window=5).mean()
     df['MA10'] = df['close'].rolling(window=10).mean()
     df['MA20'] = df['close'].rolling(window=20).mean()
     df['MA50'] = df['close'].rolling(window=50).mean()
     df['MA100'] = df['close'].rolling(window=100).mean()
     df['MA200'] = df['close'].rolling(window=200).mean()
-
-    # ========== NHÓM 2: EXPONENTIAL MA (2 chỉ số) ==========
     df['EMA12'] = df['close'].ewm(span=12, adjust=False).mean()
     df['EMA26'] = df['close'].ewm(span=26, adjust=False).mean()
     df['EMA50'] = df['close'].ewm(span=50, adjust=False).mean()
 
-    # ========== NHÓM 3: RSI (1 chỉ số) ==========
+    # ========== NHÓM 2: ADVANCED MAs (5 chỉ báo) ========== MỚI!
+    # Hull Moving Average
+    wma_half = df['close'].rolling(window=10).apply(lambda x: np.dot(x, np.arange(1, 11)) / np.arange(1, 11).sum(),
+                                                    raw=True)
+    wma_full = df['close'].rolling(window=20).apply(lambda x: np.dot(x, np.arange(1, 21)) / np.arange(1, 21).sum(),
+                                                    raw=True)
+    df['HMA'] = (2 * wma_half - wma_full).rolling(window=5).apply(
+        lambda x: np.dot(x, np.arange(1, 6)) / np.arange(1, 6).sum(), raw=True
+    )
+
+    # DEMA - Double Exponential MA
+    ema1 = df['close'].ewm(span=20, adjust=False).mean()
+    ema2 = ema1.ewm(span=20, adjust=False).mean()
+    df['DEMA'] = 2 * ema1 - ema2
+
+    # TEMA - Triple Exponential MA
+    ema3 = ema2.ewm(span=20, adjust=False).mean()
+    df['TEMA'] = 3 * ema1 - 3 * ema2 + ema3
+
+    # VWMA - Volume Weighted MA
+    df['VWMA'] = (df['close'] * df['volume']).rolling(window=20).sum() / df['volume'].rolling(window=20).sum()
+
+    # ZLEMA - Zero Lag EMA
+    lag = (20 - 1) // 2
+    df['ZLEMA'] = (df['close'] + (df['close'] - df['close'].shift(lag))).ewm(span=20, adjust=False).mean()
+
+    # ========== NHÓM 3: RSI & MOMENTUM (8 chỉ báo) ==========
     delta = df['close'].diff()
     gain = delta.where(delta > 0, 0).rolling(window=14).mean()
     loss = -delta.where(delta < 0, 0).rolling(window=14).mean()
     rs = gain / loss
     df['RSI'] = 100 - (100 / (1 + rs))
 
-    # ========== NHÓM 4: MACD (3 chỉ số) ==========
+    # Stochastic RSI - MỚI!
+    rsi_low = df['RSI'].rolling(window=14).min()
+    rsi_high = df['RSI'].rolling(window=14).max()
+    df['StochRSI'] = 100 * (df['RSI'] - rsi_low) / (rsi_high - rsi_low)
+    df['StochRSI_K'] = df['StochRSI'].rolling(window=3).mean()
+    df['StochRSI_D'] = df['StochRSI_K'].rolling(window=3).mean()
+
+    # TSI - True Strength Index - MỚI!
+    momentum = df['close'].diff()
+    double_smoothed_mom = momentum.ewm(span=25, adjust=False).mean().ewm(span=13, adjust=False).mean()
+    double_smoothed_abs_mom = momentum.abs().ewm(span=25, adjust=False).mean().ewm(span=13, adjust=False).mean()
+    df['TSI'] = 100 * (double_smoothed_mom / double_smoothed_abs_mom)
+
+    # CMO - Chande Momentum Oscillator - MỚI!
+    mom_sum = momentum.rolling(window=14).sum()
+    abs_mom_sum = momentum.abs().rolling(window=14).sum()
+    df['CMO'] = 100 * (mom_sum / abs_mom_sum)
+
+    # ========== NHÓM 4: MACD (3 chỉ báo) ==========
     df['MACD'] = df['EMA12'] - df['EMA26']
     df['MACD_signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
     df['MACD_hist'] = df['MACD'] - df['MACD_signal']
 
-    # ========== NHÓM 5: BOLLINGER BANDS (4 chỉ số) ==========
+    # ========== NHÓM 5: BOLLINGER & KELTNER (8 chỉ báo) ==========
     df['BB_middle'] = df['close'].rolling(window=20).mean()
     bb_std = df['close'].rolling(window=20).std()
     df['BB_upper'] = df['BB_middle'] + (bb_std * 2)
     df['BB_lower'] = df['BB_middle'] - (bb_std * 2)
     df['BB_width'] = (df['BB_upper'] - df['BB_lower']) / df['BB_middle']
 
-    # ========== NHÓM 6: STOCHASTIC (2 chỉ số) ==========
-    low_14 = df['low'].rolling(window=14).min()
-    high_14 = df['high'].rolling(window=14).max()
-    df['Stoch_K'] = 100 * ((df['close'] - low_14) / (high_14 - low_14))
-    df['Stoch_D'] = df['Stoch_K'].rolling(window=3).mean()
-
-    # ========== NHÓM 7: WILLIAMS %R (1 chỉ số) ==========
-    df['Williams_R'] = -100 * ((high_14 - df['close']) / (high_14 - low_14))
-
-    # ========== NHÓM 8: ADX & DIRECTIONAL MOVEMENT (3 chỉ số) ==========
-    plus_dm = df['high'].diff()
-    minus_dm = -df['low'].diff()
-    plus_dm[plus_dm < 0] = 0
-    minus_dm[minus_dm < 0] = 0
-
+    # ATR calculation
     tr1 = df['high'] - df['low']
     tr2 = abs(df['high'] - df['close'].shift())
     tr3 = abs(df['low'] - df['close'].shift())
     tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
     atr = tr.rolling(window=14).mean()
+    df['ATR'] = atr
+
+    df['Keltner_middle'] = df['close'].ewm(span=20, adjust=False).mean()
+    df['Keltner_upper'] = df['Keltner_middle'] + (2 * atr)
+    df['Keltner_lower'] = df['Keltner_middle'] - (2 * atr)
+
+    # ========== NHÓM 6: DONCHIAN CHANNEL (3 chỉ báo) ========== MỚI!
+    df['Donchian_upper'] = df['high'].rolling(window=20).max()
+    df['Donchian_lower'] = df['low'].rolling(window=20).min()
+    df['Donchian_middle'] = (df['Donchian_upper'] + df['Donchian_lower']) / 2
+
+    # ========== NHÓM 7: STOCHASTIC (2 chỉ báo) ==========
+    low_14 = df['low'].rolling(window=14).min()
+    high_14 = df['high'].rolling(window=14).max()
+    df['Stoch_K'] = 100 * ((df['close'] - low_14) / (high_14 - low_14))
+    df['Stoch_D'] = df['Stoch_K'].rolling(window=3).mean()
+
+    # ========== NHÓM 8: WILLIAMS %R (1 chỉ báo) ==========
+    df['Williams_R'] = -100 * ((high_14 - df['close']) / (high_14 - low_14))
+
+    # ========== NHÓM 9: ADX & DIRECTIONAL (3 chỉ báo) ==========
+    plus_dm = df['high'].diff()
+    minus_dm = -df['low'].diff()
+    plus_dm[plus_dm < 0] = 0
+    minus_dm[minus_dm < 0] = 0
 
     plus_di = 100 * (plus_dm.rolling(window=14).mean() / atr)
     minus_di = 100 * (minus_dm.rolling(window=14).mean() / atr)
@@ -818,21 +871,52 @@ def calculate_advanced_indicators(df):
     df['DI_plus'] = plus_di
     df['DI_minus'] = minus_di
 
-    # ========== NHÓM 9: ATR (1 chỉ số) ==========
-    df['ATR'] = atr
+    # ========== NHÓM 10: SUPERTREND (2 chỉ báo) ========== MỚI!
+    multiplier = 3
+    hl_avg = (df['high'] + df['low']) / 2
+    basic_ub = hl_avg + (multiplier * atr)
+    basic_lb = hl_avg - (multiplier * atr)
 
-    # ========== NHÓM 10: OBV (1 chỉ số) ==========
+    supertrend = pd.Series(index=df.index, dtype=float)
+    direction = pd.Series(index=df.index, dtype=int)
+
+    for i in range(len(df)):
+        if i == 0:
+            supertrend.iloc[i] = basic_ub.iloc[i]
+            direction.iloc[i] = 1
+        else:
+            if df['close'].iloc[i] > supertrend.iloc[i - 1]:
+                supertrend.iloc[i] = max(basic_lb.iloc[i], supertrend.iloc[i - 1])
+                direction.iloc[i] = 1
+            elif df['close'].iloc[i] < supertrend.iloc[i - 1]:
+                supertrend.iloc[i] = min(basic_ub.iloc[i], supertrend.iloc[i - 1])
+                direction.iloc[i] = -1
+            else:
+                supertrend.iloc[i] = supertrend.iloc[i - 1]
+                direction.iloc[i] = direction.iloc[i - 1]
+
+    df['Supertrend'] = supertrend
+    df['Supertrend_direction'] = direction
+
+    # ========== NHÓM 11: OBV & VOLUME (6 chỉ báo) ==========
     df['OBV'] = (np.sign(df['close'].diff()) * df['volume']).fillna(0).cumsum()
-
-    # ========== NHÓM 11: VOLUME (2 chỉ số) ==========
     df['Volume_MA'] = df['volume'].rolling(window=20).mean()
     df['Volume_ratio'] = df['volume'] / df['Volume_MA']
 
-    # ========== NHÓM 12: CCI (1 chỉ số) ==========
+    # Force Index - MỚI!
+    df['Force_Index'] = df['close'].diff() * df['volume']
+    df['Force_Index_MA'] = df['Force_Index'].ewm(span=13, adjust=False).mean()
+
+    # Ease of Movement - MỚI!
+    distance = ((df['high'] + df['low']) / 2 - (df['high'].shift() + df['low'].shift()) / 2)
+    box_ratio = (df['volume'] / 1000000) / (df['high'] - df['low'])
+    df['EMV'] = distance / box_ratio
+    df['EMV_MA'] = df['EMV'].rolling(window=14).mean()
+
+    # ========== NHÓM 12: CCI & MFI (2 chỉ báo) ==========
     tp = (df['high'] + df['low'] + df['close']) / 3
     df['CCI'] = (tp - tp.rolling(window=20).mean()) / (0.015 * tp.rolling(window=20).std())
 
-    # ========== NHÓM 13: MFI (1 chỉ số) ==========
     typical_price = (df['high'] + df['low'] + df['close']) / 3
     raw_money_flow = typical_price * df['volume']
     positive_flow = raw_money_flow.where(typical_price > typical_price.shift(1), 0).rolling(window=14).sum()
@@ -840,10 +924,10 @@ def calculate_advanced_indicators(df):
     mfi_ratio = positive_flow / negative_flow
     df['MFI'] = 100 - (100 / (1 + mfi_ratio))
 
-    # ========== NHÓM 14: ROC (1 chỉ số) ==========
+    # ========== NHÓM 13: ROC (1 chỉ báo) ==========
     df['ROC'] = ((df['close'] - df['close'].shift(12)) / df['close'].shift(12)) * 100
 
-    # ========== NHÓM 15: ICHIMOKU (4 chỉ số) ==========
+    # ========== NHÓM 14: ICHIMOKU (4 chỉ báo) ==========
     high_9 = df['high'].rolling(window=9).max()
     low_9 = df['low'].rolling(window=9).min()
     df['Ichimoku_conversion'] = (high_9 + low_9) / 2
@@ -858,24 +942,13 @@ def calculate_advanced_indicators(df):
     low_52 = df['low'].rolling(window=52).min()
     df['Ichimoku_span_b'] = ((high_52 + low_52) / 2).shift(26)
 
-    # ========== NHÓM 16: VWAP (1 chỉ số) ========== MỚI!
+    # ========== NHÓM 15: VWAP & PIVOT (4 chỉ báo) ==========
     df['VWAP'] = (df['volume'] * (df['high'] + df['low'] + df['close']) / 3).cumsum() / df['volume'].cumsum()
-
-    # ========== NHÓM 17: PIVOT POINTS (3 chỉ số) ========== MỚI!
     df['Pivot'] = (df['high'].shift(1) + df['low'].shift(1) + df['close'].shift(1)) / 3
     df['Resistance1'] = 2 * df['Pivot'] - df['low'].shift(1)
     df['Support1'] = 2 * df['Pivot'] - df['high'].shift(1)
 
-    # ========== NHÓM 18: PARABOLIC SAR (1 chỉ số) ========== MỚI!
-    # Simplified SAR
-    df['SAR'] = df['close'].rolling(window=5).mean()  # Simplified version
-
-    # ========== NHÓM 19: KELTNER CHANNEL (3 chỉ số) ========== MỚI!
-    df['Keltner_middle'] = df['EMA20'] = df['close'].ewm(span=20, adjust=False).mean()
-    df['Keltner_upper'] = df['Keltner_middle'] + (2 * atr)
-    df['Keltner_lower'] = df['Keltner_middle'] - (2 * atr)
-
-    # ========== NHÓM 20: ULTIMATE OSCILLATOR (1 chỉ số) ========== MỚI!
+    # ========== NHÓM 16: ULTIMATE OSCILLATOR (1 chỉ báo) ==========
     bp = df['close'] - pd.concat([df['low'], df['close'].shift()], axis=1).min(axis=1)
     bp_sum_7 = bp.rolling(window=7).sum()
     bp_sum_14 = bp.rolling(window=14).sum()
@@ -891,12 +964,12 @@ def calculate_advanced_indicators(df):
 
     df['UltimateOsc'] = 100 * ((4 * avg_7) + (2 * avg_14) + avg_28) / 7
 
-    # ========== NHÓM 21: CHAIKIN OSCILLATOR (1 chỉ số) ========== MỚI!
+    # ========== NHÓM 17: CHAIKIN (1 chỉ báo) ==========
     adl = ((df['close'] - df['low']) - (df['high'] - df['close'])) / (df['high'] - df['low']) * df['volume']
     adl = adl.fillna(0).cumsum()
     df['Chaikin'] = adl.ewm(span=3, adjust=False).mean() - adl.ewm(span=10, adjust=False).mean()
 
-    # ========== NHÓM 22: AROON (2 chỉ số) ========== MỚI!
+    # ========== NHÓM 18: AROON (2 chỉ báo) ==========
     aroon_period = 25
     df['Aroon_up'] = df['high'].rolling(window=aroon_period + 1).apply(
         lambda x: (aroon_period - x[::-1].argmax()) / aroon_period * 100, raw=True
@@ -905,108 +978,153 @@ def calculate_advanced_indicators(df):
         lambda x: (aroon_period - x[::-1].argmin()) / aroon_period * 100, raw=True
     )
 
-    # ========== NHÓM 23: TRIX (1 chỉ số) ========== MỚI!
+    # ========== NHÓM 19: VORTEX (2 chỉ báo) ========== MỚI!
+    vi_plus = abs(df['high'] - df['low'].shift(1)).rolling(window=14).sum()
+    vi_minus = abs(df['low'] - df['high'].shift(1)).rolling(window=14).sum()
+    tr_sum = tr.rolling(window=14).sum()
+    df['Vortex_plus'] = vi_plus / tr_sum
+    df['Vortex_minus'] = vi_minus / tr_sum
+
+    # ========== NHÓM 20: TRIX (1 chỉ báo) ==========
     ema1 = df['close'].ewm(span=15, adjust=False).mean()
     ema2 = ema1.ewm(span=15, adjust=False).mean()
     ema3 = ema2.ewm(span=15, adjust=False).mean()
     df['TRIX'] = (ema3 - ema3.shift(1)) / ema3.shift(1) * 100
 
-    # ========== NHÓM 24: VOLATILITY (2 chỉ số) ========== MỚI!
+    # ========== NHÓM 21: VOLATILITY (3 chỉ báo) ==========
     df['Volatility'] = df['close'].rolling(window=20).std() / df['close'].rolling(window=20).mean()
     df['True_Range'] = tr
+
+    # Choppiness Index - MỚI!
+    atr_sum = tr.rolling(window=14).sum()
+    high_low_range = df['high'].rolling(window=14).max() - df['low'].rolling(window=14).min()
+    df['Choppiness'] = 100 * np.log10(atr_sum / high_low_range) / np.log10(14)
+
+    # ========== NHÓM 22: ELDER RAY (2 chỉ báo) ========== MỚI!
+    ema13 = df['close'].ewm(span=13, adjust=False).mean()
+    df['Bull_Power'] = df['high'] - ema13
+    df['Bear_Power'] = df['low'] - ema13
+
+    # ========== NHÓM 23: AWESOME OSCILLATOR (1 chỉ báo) ========== MỚI!
+    median_price = (df['high'] + df['low']) / 2
+    df['AO'] = median_price.rolling(window=5).mean() - median_price.rolling(window=34).mean()
+
+    # ========== NHÓM 24: CANDLESTICK PATTERNS (5 patterns) ========== MỚI!
+    # Doji
+    body = abs(df['close'] - df['open'])
+    range_hl = df['high'] - df['low']
+    df['Doji'] = (body / range_hl < 0.1).astype(int)
+
+    # Hammer
+    lower_shadow = df[['open', 'close']].min(axis=1) - df['low']
+    upper_shadow = df['high'] - df[['open', 'close']].max(axis=1)
+    df['Hammer'] = ((lower_shadow > 2 * body) & (upper_shadow < body)).astype(int)
+
+    # Shooting Star
+    df['Shooting_Star'] = ((upper_shadow > 2 * body) & (lower_shadow < body)).astype(int)
+
+    # Bullish Engulfing
+    prev_body = abs(df['close'].shift(1) - df['open'].shift(1))
+    df['Bullish_Engulfing'] = (
+            (df['close'] > df['open']) &
+            (df['close'].shift(1) < df['open'].shift(1)) &
+            (df['close'] > df['open'].shift(1)) &
+            (df['open'] < df['close'].shift(1)) &
+            (body > prev_body)
+    ).astype(int)
+
+    # Bearish Engulfing
+    df['Bearish_Engulfing'] = (
+            (df['close'] < df['open']) &
+            (df['close'].shift(1) > df['open'].shift(1)) &
+            (df['close'] < df['open'].shift(1)) &
+            (df['open'] > df['close'].shift(1)) &
+            (body > prev_body)
+    ).astype(int)
 
     return df
 
 
 # ============================================
-# 4C: DỰ ĐOÁN CẢI TIẾN - TỔNG HỢP NHIỀU PHƯƠNG PHÁP
+# 4C: DỰ ĐOÁN CẢI TIẾN
 # ============================================
 
 def predict_future_price_enhanced(df, days=7):
-    """
-    Dự đoán giá kết hợp nhiều phương pháp:
-    1. Polynomial Regression (xu hướng dài hạn)
-    2. Weighted Moving Average (xu hướng ngắn hạn)
-    3. Momentum adjustment (điều chỉnh theo động lượng)
-    """
+    """Dự đoán giá với nhiều phương pháp kết hợp"""
     if df is None or df.empty or len(df) < 30:
         return None, None
 
     try:
         recent_data = df['close'].tail(60).values
 
-        # METHOD 1: Polynomial Regression (trọng số 40%)
+        # METHOD 1: Polynomial (40%)
         x = np.arange(len(recent_data))
         z = np.polyfit(x, recent_data, 3)
         p = np.poly1d(z)
         future_x = np.arange(len(recent_data), len(recent_data) + days)
         poly_pred = p(future_x)
 
-        # METHOD 2: Weighted Moving Average (trọng số 30%)
+        # METHOD 2: WMA (30%)
         weights = np.exp(np.linspace(-1, 0, 30))
         weights /= weights.sum()
         wma_value = np.dot(recent_data[-30:], weights)
-        trend = (recent_data[-1] - recent_data[-30]) / 30  # Trend per day
+        trend = (recent_data[-1] - recent_data[-30]) / 30
         wma_pred = wma_value + trend * np.arange(1, days + 1)
 
-        # METHOD 3: RSI & MACD Adjustment (trọng số 30%)
+        # METHOD 3: Momentum adjustment (30%)
         latest = df.iloc[-1]
 
-        # RSI adjustment
         rsi = latest['RSI']
-        if rsi < 30:  # Oversold - xu hướng tăng
-            rsi_factor = 1.02
-        elif rsi > 70:  # Overbought - xu hướng giảm
-            rsi_factor = 0.98
-        else:
-            rsi_factor = 1.0
+        rsi_factor = 1.02 if rsi < 30 else 0.98 if rsi > 70 else 1.0
 
-        # MACD adjustment
         macd_strength = latest['MACD'] - latest['MACD_signal']
         macd_factor = 1 + (macd_strength / abs(recent_data[-1])) * 0.5
         macd_factor = np.clip(macd_factor, 0.95, 1.05)
 
-        # Momentum factor
-        momentum_factor = rsi_factor * macd_factor
+        # Supertrend adjustment
+        if pd.notna(latest.get('Supertrend_direction')):
+            supertrend_factor = 1.01 if latest['Supertrend_direction'] == 1 else 0.99
+        else:
+            supertrend_factor = 1.0
 
-        # Kết hợp các phương pháp
+        momentum_factor = rsi_factor * macd_factor * supertrend_factor
+
+        # Kết hợp
         combined_pred = (
                 poly_pred * 0.4 +
                 wma_pred * 0.3 +
                 recent_data[-1] * momentum_factor * 0.3
         )
 
-        # Thêm volatility dựa trên ATR
+        # Volatility
         volatility = df['ATR'].iloc[-1] if pd.notna(df['ATR'].iloc[-1]) else df['close'].tail(30).std()
         noise = np.random.normal(0, volatility * 0.15, days)
         combined_pred = combined_pred + noise
 
-        # Đảm bảo giá không âm và không quá xa giá hiện tại
+        # Giới hạn
         combined_pred = np.maximum(combined_pred, recent_data[-1] * 0.7)
         combined_pred = np.minimum(combined_pred, recent_data[-1] * 1.3)
 
-        # Tính confidence dựa trên ADX và volatility
+        # Confidence
         adx = latest['ADX'] if pd.notna(latest['ADX']) else 20
         vol_ratio = df['Volatility'].iloc[-1] if pd.notna(df['Volatility'].iloc[-1]) else 0.05
 
-        # ADX cao = xu hướng mạnh = confidence cao
-        # Volatility thấp = confidence cao
         confidence = (adx / 50) * 0.5 + (1 - min(vol_ratio * 10, 1)) * 0.5
         confidence = np.clip(confidence, 0.3, 0.9)
 
         return combined_pred, confidence
 
     except Exception as e:
-        print(f"Error predicting price: {e}")
+        print(f"Error predicting: {e}")
         return None, None
 
 
 # ============================================
-# 4D: TÍNH TOÁN DÒNG TIỀN
+# 4D: CÁC HÀM HỖ TRỢ KHÁC
 # ============================================
 
 def calculate_money_flow(df):
-    """Tính toán dòng tiền"""
+    """Phân tích dòng tiền"""
     if df is None or df.empty:
         return None
 
@@ -1015,7 +1133,6 @@ def calculate_money_flow(df):
 
     mfi = latest.get('MFI', 50)
     volume_change = ((latest['volume'] - prev['volume']) / prev['volume'] * 100) if prev['volume'] > 0 else 0
-    money_flow_raw = latest['close'] * latest['volume']
     obv_change = latest['OBV'] - df['OBV'].iloc[-20] if len(df) >= 20 else 0
 
     if mfi > 70:
@@ -1036,18 +1153,13 @@ def calculate_money_flow(df):
         'status': flow_status,
         'color': flow_color,
         'volume_change': volume_change,
-        'money_flow_raw': money_flow_raw,
         'obv_change': obv_change,
         'obv_trend': 'Tăng' if obv_change > 0 else 'Giảm'
     }
 
 
-# ============================================
-# 4E: HỖ TRỢ & KHÁNG CỰ
-# ============================================
-
 def get_support_resistance(df):
-    """Tìm mức hỗ trợ và kháng cự"""
+    """Tìm hỗ trợ & kháng cự"""
     if df is None or len(df) < 20:
         return None
 
@@ -1056,6 +1168,7 @@ def get_support_resistance(df):
 
     resistance_levels = [
         latest['BB_upper'] if pd.notna(latest['BB_upper']) else None,
+        latest['Donchian_upper'] if pd.notna(latest.get('Donchian_upper')) else None,
         latest['Resistance1'] if pd.notna(latest['Resistance1']) else None,
         recent['high'].quantile(0.95),
         recent['high'].max()
@@ -1063,6 +1176,7 @@ def get_support_resistance(df):
 
     support_levels = [
         latest['BB_lower'] if pd.notna(latest['BB_lower']) else None,
+        latest['Donchian_lower'] if pd.notna(latest.get('Donchian_lower')) else None,
         latest['Support1'] if pd.notna(latest['Support1']) else None,
         recent['low'].quantile(0.05),
         recent['low'].min()
@@ -1075,12 +1189,8 @@ def get_support_resistance(df):
     }
 
 
-# ============================================
-# 4F: THAY ĐỔI GIÁ
-# ============================================
-
 def get_price_change(df, periods=[1, 7, 30]):
-    """Tính % thay đổi giá"""
+    """Thay đổi giá"""
     if df is None or len(df) < 2:
         return {}
 
@@ -1096,23 +1206,45 @@ def get_price_change(df, periods=[1, 7, 30]):
     return changes
 
 
-print("✅ Enhanced indicators (30+) & improved prediction loaded!")
+def detect_candlestick_patterns(df):
+    """Phát hiện mẫu nến"""
+    if df is None or len(df) < 2:
+        return {}
+
+    latest = df.iloc[-1]
+
+    patterns = {
+        'Doji': latest.get('Doji', 0) == 1,
+        'Hammer': latest.get('Hammer', 0) == 1,
+        'Shooting Star': latest.get('Shooting_Star', 0) == 1,
+        'Bullish Engulfing': latest.get('Bullish_Engulfing', 0) == 1,
+        'Bearish Engulfing': latest.get('Bearish_Engulfing', 0) == 1
+    }
+
+    return {k: v for k, v in patterns.items() if v}
+
+
+print("✅ Ultimate indicators (60+) loaded!")
 # ============================================
-# PHẦN 5 ENHANCED: ML & PHÂN TÍCH CẢI TIẾN
+# PHẦN 5 SMART: LOGIC PHÂN TÍCH THÔNG MINH
 # ============================================
 
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.ensemble import GradientBoostingClassifier
 import numpy as np
 import pandas as pd
 
 
 # ============================================
-# 5A: TẠO TÍN HIỆU VỚI 30+ CHỈ BÁO (NÂNG CẤP)
+# 5A: TẠO TÍN HIỆU VỚI LOGIC THÔNG MINH
 # ============================================
 
 def generate_advanced_signal(df, info=None):
-    """Tạo tín hiệu giao dịch với 30+ chỉ báo"""
+    """
+    Tạo tín hiệu với logic thông minh:
+    1. Kiểm tra điều kiện VETO (loại ngay nếu quá xấu)
+    2. Tính điểm có trọng số
+    3. Xác nhận chéo giữa các chỉ báo
+    """
     if df is None or df.empty or len(df) < 50:
         return "N/A", 50, "Không đủ dữ liệu", "N/A", {}
 
@@ -1121,57 +1253,136 @@ def generate_advanced_signal(df, info=None):
     score = 50
     reasons = []
     details = {}
+    veto_reasons = []  # Lý do VETO
 
-    # ===== 1. XU HƯỚNG (25 điểm) =====
+    # ========================================
+    # BƯỚC 1: KIỂM TRA ĐIỀU KIỆN VETO (Loại ngay)
+    # ========================================
+
+    veto_count = 0
+
+    # VETO 1: Supertrend GIẢM mạnh
+    if pd.notna(latest.get('Supertrend_direction')):
+        if latest['Supertrend_direction'] == -1:
+            veto_count += 1
+            veto_reasons.append("🚫 Supertrend GIẢM")
+
+    # VETO 2: RSI quá mua + giá giảm
+    if pd.notna(latest['RSI']):
+        if latest['RSI'] > 75 and latest['close'] < prev['close']:
+            veto_count += 1
+            veto_reasons.append("🚫 RSI quá mua + giá giảm")
+
+    # VETO 3: MACD Death Cross gần đây
+    if pd.notna(latest['MACD']) and pd.notna(latest['MACD_signal']):
+        if latest['MACD'] < latest['MACD_signal'] and prev['MACD'] >= prev['MACD_signal']:
+            veto_count += 1
+            veto_reasons.append("🚫 MACD Death Cross mới")
+
+    # VETO 4: Death Cross MA (MA5 < MA20 < MA50)
+    if pd.notna(latest['MA5']) and pd.notna(latest['MA20']) and pd.notna(latest['MA50']):
+        if latest['MA5'] < latest['MA20'] < latest['MA50']:
+            veto_count += 1
+            veto_reasons.append("🚫 Death Cross (MA5<MA20<MA50)")
+
+    # VETO 5: ADX yếu + RSI giảm
+    if pd.notna(latest['ADX']) and pd.notna(latest['RSI']):
+        if latest['ADX'] < 15 and latest['RSI'] < prev['RSI']:
+            veto_count += 0.5
+            veto_reasons.append("⚠️ Xu hướng rất yếu")
+
+    # VETO 6: Bearish Engulfing
+    if latest.get('Bearish_Engulfing', 0) == 1:
+        veto_count += 1
+        veto_reasons.append("🚫 Bearish Engulfing")
+
+    # ========================================
+    # BƯỚC 2: XỬ LÝ VETO
+    # ========================================
+
+    if veto_count >= 3:
+        # Có >= 3 tín hiệu VETO → Buộc phải BÁN/GIỮ
+        return "BÁN", 25, "🚫 CẢNH BÁO NGHIÊM TRỌNG:\n" + "\n".join(veto_reasons), "Nên bán ngay", {'veto': veto_count}
+    elif veto_count >= 2:
+        # Có 2 VETO → Điểm tối đa chỉ 45 (GIỮ)
+        max_score = 45
+        reasons.append("⚠️ Có 2 tín hiệu cảnh báo nghiêm trọng")
+        reasons.extend(veto_reasons)
+    elif veto_count >= 1:
+        # Có 1 VETO → Điểm tối đa 60 (MUA thận trọng)
+        max_score = 60
+        reasons.append("⚠️ Có 1 tín hiệu cảnh báo")
+        reasons.extend(veto_reasons)
+    else:
+        max_score = 100
+
+    # ========================================
+    # BƯỚC 3: TÍNH ĐIỂM CHI TIẾT (nếu pass VETO)
+    # ========================================
+
+    # === 1. XU HƯỚNG (25 điểm) ===
     trend_score = 0
 
     if pd.notna(latest['MA5']) and pd.notna(latest['MA20']) and pd.notna(latest['MA50']):
         # Golden Cross
         if latest['MA5'] > latest['MA20'] > latest['MA50']:
-            trend_score += 12
-            reasons.append("✅ Golden Cross mạnh")
+            trend_score += 15
+            reasons.append("✅✅ Golden Cross mạnh")
         elif latest['MA5'] > latest['MA20']:
-            trend_score += 8
-            reasons.append("📈 Xu hướng tăng ngắn hạn")
-        elif latest['MA5'] < latest['MA20'] < latest['MA50']:
-            trend_score -= 10
-            reasons.append("⚠️ Death Cross")
+            trend_score += 10
+            reasons.append("📈 MA ngắn hạn tăng")
+        elif latest['MA5'] < latest['MA20']:
+            trend_score -= 8
+            reasons.append("⚠️ MA ngắn hạn giảm")
 
-        # Price vs MAs
-        if latest['close'] > latest['MA20']:
-            trend_score += 4
         if latest['close'] > latest['MA50']:
-            trend_score += 4
+            trend_score += 5
         if pd.notna(latest['MA200']) and latest['close'] > latest['MA200']:
             trend_score += 5
 
     score += trend_score
     details['trend_score'] = trend_score
 
-    # ===== 2. RSI (18 điểm) =====
+    # === 2. SUPERTREND (20 điểm) ===
+    supertrend_score = 0
+    if pd.notna(latest.get('Supertrend_direction')):
+        if latest['Supertrend_direction'] == 1:
+            supertrend_score += 20
+            reasons.append("✅✅✅ Supertrend TĂNG")
+        else:
+            supertrend_score -= 20
+            # Đã xử lý ở VETO
+
+    score += supertrend_score
+    details['supertrend_score'] = supertrend_score
+
+    # === 3. RSI (18 điểm) ===
     rsi_score = 0
     if pd.notna(latest['RSI']):
         rsi = latest['RSI']
-        if 45 <= rsi <= 55:
-            rsi_score += 14
-            reasons.append(f"✅ RSI cân bằng ({rsi:.1f})")
-        elif 30 <= rsi < 45:
+        if 40 <= rsi <= 60:
+            rsi_score += 15
+            reasons.append(f"✅ RSI lành mạnh ({rsi:.1f})")
+        elif 30 <= rsi < 40:
             rsi_score += 12
-            reasons.append(f"💰 RSI thấp ({rsi:.1f})")
+            reasons.append(f"💰 RSI hấp dẫn ({rsi:.1f})")
         elif rsi < 30:
             rsi_score += 10
             reasons.append(f"💰💰 RSI quá bán ({rsi:.1f})")
-        elif 55 < rsi <= 70:
+        elif 60 < rsi <= 70:
             rsi_score += 8
             reasons.append(f"📈 RSI tích cực ({rsi:.1f})")
-        elif rsi > 70:
-            rsi_score -= 12
-            reasons.append(f"⚠️ RSI quá mua ({rsi:.1f})")
+        elif 70 < rsi <= 80:
+            rsi_score -= 8
+            reasons.append(f"⚠️ RSI cao ({rsi:.1f})")
+        else:  # > 80
+            rsi_score -= 15
+            reasons.append(f"⚠️⚠️ RSI quá mua ({rsi:.1f})")
 
     score += rsi_score
     details['rsi_score'] = rsi_score
 
-    # ===== 3. MACD (15 điểm) =====
+    # === 4. MACD (15 điểm) ===
     macd_score = 0
     if pd.notna(latest['MACD']) and pd.notna(latest['MACD_signal']):
         if latest['MACD'] > latest['MACD_signal'] and prev['MACD'] <= prev['MACD_signal']:
@@ -1179,172 +1390,135 @@ def generate_advanced_signal(df, info=None):
             reasons.append("✅✅ MACD Golden Cross")
         elif latest['MACD'] > latest['MACD_signal']:
             macd_score += 10
-            reasons.append("✅ MACD tích cực")
-        elif latest['MACD'] < latest['MACD_signal'] and prev['MACD'] >= prev['MACD_signal']:
-            macd_score -= 15
-            reasons.append("⚠️⚠️ MACD Death Cross")
-        else:
-            macd_score -= 5
+            reasons.append("✅ MACD dương")
+        elif latest['MACD'] < latest['MACD_signal']:
+            macd_score -= 8
+            # Death Cross đã xử lý ở VETO
 
     score += macd_score
     details['macd_score'] = macd_score
 
-    # ===== 4. STOCHASTIC & WILLIAMS (8 điểm) =====
-    momentum_score = 0
-    if pd.notna(latest['Stoch_K']):
-        if latest['Stoch_K'] < 20:
-            momentum_score += 5
-            reasons.append(f"💰 Stochastic quá bán ({latest['Stoch_K']:.1f})")
-        elif latest['Stoch_K'] > 80:
-            momentum_score -= 5
-            reasons.append(f"⚠️ Stochastic quá mua ({latest['Stoch_K']:.1f})")
-
-    if pd.notna(latest['Williams_R']):
-        if latest['Williams_R'] < -80:
-            momentum_score += 3
-        elif latest['Williams_R'] > -20:
-            momentum_score -= 3
-
-    score += momentum_score
-    details['momentum_score'] = momentum_score
-
-    # ===== 5. ADX (10 điểm) =====
+    # === 5. ADX (12 điểm) ===
     adx_score = 0
     if pd.notna(latest['ADX']):
-        if latest['ADX'] > 25:
-            adx_score += 10
+        if latest['ADX'] > 30:
+            adx_score += 12
+            reasons.append(f"✅✅ Xu hướng rất mạnh (ADX: {latest['ADX']:.1f})")
+        elif latest['ADX'] > 25:
+            adx_score += 8
             reasons.append(f"✅ Xu hướng mạnh (ADX: {latest['ADX']:.1f})")
-        elif latest['ADX'] < 20:
-            adx_score -= 5
-            reasons.append(f"⚠️ Xu hướng yếu (ADX: {latest['ADX']:.1f})")
+        elif latest['ADX'] < 15:
+            adx_score -= 6
+            reasons.append(f"⚠️ Xu hướng rất yếu (ADX: {latest['ADX']:.1f})")
 
     score += adx_score
     details['adx_score'] = adx_score
 
-    # ===== 6. VOLUME (8 điểm) =====
+    # === 6. VOLUME (10 điểm) ===
     volume_score = 0
     if pd.notna(latest['Volume_ratio']):
-        if latest['Volume_ratio'] > 2:
-            volume_score += 8
-            reasons.append("✅✅ Khối lượng đột biến")
-        elif latest['Volume_ratio'] > 1.5:
-            volume_score += 5
-            reasons.append("✅ Khối lượng cao")
-        elif latest['Volume_ratio'] < 0.5:
+        if latest['Volume_ratio'] > 2.5:
+            volume_score += 10
+            reasons.append("✅✅✅ Volume bùng nổ")
+        elif latest['Volume_ratio'] > 1.8:
+            volume_score += 7
+            reasons.append("✅✅ Volume rất cao")
+        elif latest['Volume_ratio'] > 1.2:
+            volume_score += 4
+            reasons.append("✅ Volume tốt")
+        elif latest['Volume_ratio'] < 0.6:
             volume_score -= 5
-            reasons.append("⚠️ Khối lượng yếu")
+            reasons.append("⚠️ Volume yếu")
 
     score += volume_score
     details['volume_score'] = volume_score
 
-    # ===== 7. BOLLINGER BANDS (5 điểm) =====
-    bb_score = 0
-    if pd.notna(latest['BB_upper']) and pd.notna(latest['BB_lower']):
-        bb_position = (latest['close'] - latest['BB_lower']) / (latest['BB_upper'] - latest['BB_lower'])
-        if bb_position < 0.2:
-            bb_score += 5
-            reasons.append("💰 Giá gần BB Lower")
-        elif bb_position > 0.8:
-            bb_score -= 5
-            reasons.append("⚠️ Giá gần BB Upper")
+    # === 7. CANDLESTICK PATTERNS (Bonus) ===
+    patterns = detect_candlestick_patterns(df)
 
-    score += bb_score
-    details['bb_score'] = bb_score
+    if patterns.get('Bullish Engulfing'):
+        score += 8
+        reasons.append("✅✅ Bullish Engulfing")
+    elif patterns.get('Hammer'):
+        score += 5
+        reasons.append("✅ Hammer")
 
-    # ===== 8. MFI (5 điểm) =====
-    mfi_score = 0
-    if pd.notna(latest['MFI']):
-        mfi = latest['MFI']
-        if 40 <= mfi <= 60:
-            mfi_score += 5
-        elif mfi < 30:
-            mfi_score += 4
-            reasons.append(f"💰 MFI thấp ({mfi:.1f})")
-        elif mfi > 70:
-            mfi_score -= 4
-            reasons.append(f"⚠️ MFI cao ({mfi:.1f})")
+    # ========================================
+    # BƯỚC 4: GIỚI HẠN THEO VETO
+    # ========================================
 
-    score += mfi_score
-    details['mfi_score'] = mfi_score
+    score = max(0, min(score, max_score))
 
-    # ===== 9. AROON (4 điểm) - MỚI! =====
-    aroon_score = 0
-    if pd.notna(latest.get('Aroon_up')) and pd.notna(latest.get('Aroon_down')):
-        if latest['Aroon_up'] > 70 and latest['Aroon_down'] < 30:
-            aroon_score += 4
-            reasons.append("✅ Aroon tích cực")
-        elif latest['Aroon_down'] > 70 and latest['Aroon_up'] < 30:
-            aroon_score -= 4
-            reasons.append("⚠️ Aroon tiêu cực")
+    # ========================================
+    # BƯỚC 5: XÁC ĐỊNH TÍN HIỆU CUỐI CÙNG
+    # ========================================
 
-    score += aroon_score
-    details['aroon_score'] = aroon_score
+    # Logic thông minh: Kiểm tra tính nhất quán
+    negative_count = sum(1 for r in reasons if '⚠️' in r or '🚫' in r)
+    positive_count = sum(1 for r in reasons if '✅' in r or '💰' in r)
 
-    # ===== 10. ULTIMATE OSCILLATOR (2 điểm) - MỚI! =====
-    uo_score = 0
-    if pd.notna(latest.get('UltimateOsc')):
-        uo = latest['UltimateOsc']
-        if uo < 30:
-            uo_score += 2
-        elif uo > 70:
-            uo_score -= 2
+    # Nếu có quá nhiều lý do tiêu cực so với tích cực
+    if negative_count > positive_count and score > 50:
+        score = max(score - 15, 40)  # Phạt điểm nặng
+        reasons.insert(0, "⚠️ CẢNH BÁO: Nhiều tín hiệu tiêu cực")
 
-    score += uo_score
-    details['uo_score'] = uo_score
-
-    # Giới hạn 0-100
-    score = max(0, min(100, score))
-
-    # Xác định tín hiệu
     if score >= 80:
         signal = "MUA MẠNH"
-        term = "Ngắn & Dài hạn"
+        term = "Ngắn & Trung hạn"
     elif score >= 70:
         signal = "MUA"
         term = "Ngắn hạn"
     elif score >= 60:
         signal = "MUA (thận trọng)"
-        term = "Ngắn hạn"
+        term = "Quan sát thêm"
     elif score >= 45:
         signal = "GIỮ"
         term = "Theo dõi"
-    elif score >= 35:
+    elif score >= 30:
         signal = "BÁN (thận trọng)"
         term = "Cân nhắc bán"
     else:
         signal = "BÁN"
         term = "Nên bán"
 
-    reason_text = "\n".join(reasons[:10])
+    # ========================================
+    # BƯỚC 6: KIỂM TRA MÂU THUẪN CUỐI CÙNG
+    # ========================================
+
+    # Nếu tín hiệu MUA nhưng có >= 3 lý do tiêu cực
+    if signal.startswith("MUA") and negative_count >= 3:
+        signal = "GIỮ"
+        term = "Tín hiệu mâu thuẫn - nên đợi"
+        reasons.insert(0, "⚠️⚠️ CẢNH BÁO MÂU THUẪN: Nhiều tín hiệu tiêu cực")
+
+    reason_text = "\n".join(reasons[:15])
     return signal, score, reason_text, term, details
 
 
 # ============================================
-# 5B: ML PREDICTION CẢI TIẾN (DỰ ĐOÁN 7 NGÀY)
+# 5B: ML PREDICTION
 # ============================================
 
 def predict_trend_ml_enhanced(df, forecast_days=7):
-    """
-    Dự đoán xu hướng 7 ngày bằng ML
-    Trả về: xu hướng cho từng ngày + confidence
-    """
+    """Dự đoán xu hướng bằng ML"""
     if df is None or df.empty or len(df) < 100:
         return None, 0.5
 
     try:
-        # Features mở rộng
         features = [
             'RSI', 'MACD', 'Stoch_K', 'ADX', 'Volume_ratio',
             'MFI', 'CCI', 'Williams_R', 'BB_width', 'ATR',
-            'Aroon_up', 'Aroon_down', 'UltimateOsc', 'TRIX'
+            'Aroon_up', 'Aroon_down', 'UltimateOsc', 'TRIX',
+            'StochRSI', 'TSI', 'Vortex_plus', 'Vortex_minus',
+            'Bull_Power', 'Bear_Power', 'AO', 'Choppiness'
         ]
 
-        df_clean = df[[f for f in features if f in df.columns]].dropna()
+        available_features = [f for f in features if f in df.columns]
+        df_clean = df[available_features].dropna()
 
         if len(df_clean) < 50:
             return None, 0.5
 
-        # Tạo target cho 7 ngày
         df_clean['target'] = (df.loc[df_clean.index, 'close'].shift(-forecast_days) >
                               df.loc[df_clean.index, 'close']).astype(int)
         df_clean = df_clean.dropna()
@@ -1352,22 +1526,19 @@ def predict_trend_ml_enhanced(df, forecast_days=7):
         if len(df_clean) < 50:
             return None, 0.5
 
-        # Train/test split
         split = int(len(df_clean) * 0.8)
-        X_train = df_clean[[f for f in features if f in df_clean.columns]].iloc[:split]
+        X_train = df_clean[available_features].iloc[:split]
         y_train = df_clean['target'].iloc[:split]
 
-        # Train Gradient Boosting (tốt hơn Random Forest)
         model = GradientBoostingClassifier(
-            n_estimators=150,
-            max_depth=5,
+            n_estimators=200,
+            max_depth=6,
             learning_rate=0.1,
             random_state=42
         )
         model.fit(X_train, y_train)
 
-        # Predict
-        latest_features = df_clean[[f for f in features if f in df_clean.columns]].iloc[-1:].values
+        latest_features = df_clean[available_features].iloc[-1:].values
         prediction = model.predict(latest_features)[0]
         probability = model.predict_proba(latest_features)[0]
 
@@ -1376,13 +1547,31 @@ def predict_trend_ml_enhanced(df, forecast_days=7):
 
         return trend, confidence
     except Exception as e:
-        print(f"Error in ML prediction: {e}")
+        print(f"Error ML: {e}")
         return None, 0.5
 
 
 # ============================================
-# 5C: BACKTESTING
+# 5C: HELPER FUNCTIONS
 # ============================================
+
+def detect_candlestick_patterns(df):
+    """Phát hiện mẫu nến"""
+    if df is None or len(df) < 2:
+        return {}
+
+    latest = df.iloc[-1]
+
+    patterns = {
+        'Doji': latest.get('Doji', 0) == 1,
+        'Hammer': latest.get('Hammer', 0) == 1,
+        'Shooting Star': latest.get('Shooting_Star', 0) == 1,
+        'Bullish Engulfing': latest.get('Bullish_Engulfing', 0) == 1,
+        'Bearish Engulfing': latest.get('Bearish_Engulfing', 0) == 1
+    }
+
+    return {k: v for k, v in patterns.items() if v}
+
 
 def simple_backtest(df, initial_capital=100000000):
     """Backtest chiến lược"""
@@ -1400,7 +1589,8 @@ def simple_backtest(df, initial_capital=100000000):
 
         current_price = df.iloc[i]['close']
 
-        if signal.startswith("MUA") and shares == 0 and capital > current_price:
+        # Chỉ mua khi tín hiệu rõ ràng (>= 65 điểm)
+        if signal == "MUA MẠNH" and shares == 0 and capital > current_price:
             shares = int(capital * 0.95 / current_price)
             cost = shares * current_price
             capital -= cost
@@ -1412,7 +1602,8 @@ def simple_backtest(df, initial_capital=100000000):
                 'value': cost
             })
 
-        elif signal.startswith("BÁN") and shares > 0:
+        # Bán khi có tín hiệu bán hoặc điểm < 55
+        elif (signal.startswith("BÁN") or score < 55) and shares > 0:
             revenue = shares * current_price
             capital += revenue
             trades.append({
@@ -1440,7 +1631,335 @@ def simple_backtest(df, initial_capital=100000000):
     }
 
 
-print("✅ Enhanced ML & Analysis loaded!")
+print("✅ Smart Signal Logic loaded!")
+# ============================================
+# PHẦN 6A: MODULE HOLDING PERIOD (THÊM VÀO ĐÂY!)
+# ============================================
+
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+
+
+def calculate_holding_period(df, signal, score, details):
+    """
+    Tính toán thời gian nắm giữ tối ưu
+    """
+    if df is None or df.empty or len(df) < 50:
+        return None
+
+    latest = df.iloc[-1]
+
+    # Xác định xu hướng
+    trend_type = "SIDEWAY"
+    trend_strength = 0
+
+    if pd.notna(latest.get('ADX')):
+        adx = latest['ADX']
+        if adx > 40:
+            trend_strength = 3
+        elif adx > 25:
+            trend_strength = 2
+        elif adx > 20:
+            trend_strength = 1
+        else:
+            trend_strength = 0
+
+    if pd.notna(latest.get('Supertrend_direction')):
+        if latest['Supertrend_direction'] == 1:
+            trend_type = "TĂNG"
+        elif latest['Supertrend_direction'] == -1:
+            trend_type = "GIẢM"
+
+    if pd.notna(latest.get('MA5')) and pd.notna(latest.get('MA20')) and pd.notna(latest.get('MA50')):
+        if latest['MA5'] > latest['MA20'] > latest['MA50']:
+            if trend_type == "SIDEWAY":
+                trend_type = "TĂNG"
+        elif latest['MA5'] < latest['MA20'] < latest['MA50']:
+            if trend_type == "SIDEWAY":
+                trend_type = "GIẢM"
+
+    # Volatility
+    volatility_level = "TRUNG BÌNH"
+
+    if pd.notna(latest.get('ATR')) and pd.notna(latest.get('close')):
+        atr_percent = (latest['ATR'] / latest['close']) * 100
+
+        if atr_percent > 5:
+            volatility_level = "RẤT CAO"
+        elif atr_percent > 3:
+            volatility_level = "CAO"
+        elif atr_percent > 1.5:
+            volatility_level = "TRUNG BÌNH"
+        else:
+            volatility_level = "THẤP"
+
+    # Vị trí trong xu hướng
+    trend_position = "GIỮA"
+
+    if pd.notna(latest.get('RSI')):
+        rsi = latest['RSI']
+        if rsi < 30:
+            trend_position = "ĐẦU"
+        elif rsi > 70:
+            trend_position = "CUỐI"
+        elif 40 <= rsi <= 60:
+            trend_position = "GIỮA"
+
+    if pd.notna(latest.get('MACD')) and pd.notna(latest.get('MACD_signal')):
+        prev = df.iloc[-2]
+        if latest['MACD'] > latest['MACD_signal'] and prev['MACD'] <= prev['MACD_signal']:
+            trend_position = "ĐẦU"
+        elif latest['MACD'] < latest['MACD_signal'] and prev['MACD'] >= prev['MACD_signal']:
+            trend_position = "CUỐI"
+
+    # Tính thời gian
+    base_days = 0
+    min_days = 0
+    max_days = 0
+    recommended_action = ""
+    reasons = []
+
+    if trend_type == "TĂNG" and signal in ["MUA MẠNH", "MUA", "MUA (thận trọng)"]:
+        if trend_position == "ĐẦU":
+            if trend_strength >= 2:
+                base_days = 30
+                min_days = 20
+                max_days = 60
+                recommended_action = "NẮM GIỮ DÀI HẠN"
+                reasons.append("✅ Xu hướng tăng mạnh mới bắt đầu")
+            else:
+                base_days = 10
+                min_days = 5
+                max_days = 20
+                recommended_action = "NẮM GIỮ NGẮN HẠN"
+                reasons.append("📈 Xu hướng tăng yếu")
+
+        elif trend_position == "GIỮA":
+            if trend_strength >= 2:
+                base_days = 20
+                min_days = 10
+                max_days = 40
+                recommended_action = "NẮM GIỮ TRUNG HẠN"
+                reasons.append("✅ Xu hướng tăng ổn định")
+            else:
+                base_days = 7
+                min_days = 3
+                max_days = 14
+                recommended_action = "NẮM GIỮ NGẮN"
+                reasons.append("⚠️ Xu hướng không rõ ràng")
+
+        else:
+            base_days = 3
+            min_days = 1
+            max_days = 7
+            recommended_action = "CHỐT LỜI SỚM"
+            reasons.append("⚠️⚠️ Xu hướng tăng gần hết")
+            reasons.append("💡 Nên chốt lời")
+
+    elif trend_type == "GIẢM":
+        base_days = 0
+        min_days = 0
+        max_days = 0
+        recommended_action = "BÁN NGAY"
+        reasons.append("🚫 Xu hướng giảm")
+        reasons.append("💡 Không nên nắm giữ")
+
+    else:
+        if signal == "GIỮ":
+            base_days = 5
+            min_days = 3
+            max_days = 10
+            recommended_action = "THEO DÕI SÁT"
+            reasons.append("⚠️ Thị trường sideway")
+        else:
+            base_days = 1
+            min_days = 0
+            max_days = 3
+            recommended_action = "CÂN NHẮC BÁN"
+            reasons.append("⚠️ Tín hiệu không rõ")
+
+    # Điều chỉnh theo volatility
+    volatility_adjustment = 1.0
+
+    if volatility_level == "RẤT CAO":
+        volatility_adjustment = 0.6
+        reasons.append("⚠️ Biến động cao → Giảm thời gian")
+    elif volatility_level == "CAO":
+        volatility_adjustment = 0.8
+    elif volatility_level == "THẤP":
+        volatility_adjustment = 1.2
+        reasons.append("✅ Biến động thấp → An toàn")
+
+    base_days = int(base_days * volatility_adjustment)
+    min_days = int(min_days * volatility_adjustment)
+    max_days = int(max_days * volatility_adjustment)
+
+    if score >= 80:
+        reasons.append("✅✅ Điểm AI cao → Tự tin")
+    elif score < 50:
+        base_days = max(1, int(base_days * 0.5))
+        reasons.append("⚠️ Điểm AI thấp")
+
+    # Target & Stop Loss
+    current_price = latest['close']
+
+    if pd.notna(latest.get('ATR')):
+        atr = latest['ATR']
+        if trend_type == "TĂNG":
+            target_price = current_price + (atr * (base_days / 5) * 1.5)
+            stop_loss = current_price - (atr * 2)
+        else:
+            target_price = current_price
+            stop_loss = current_price - (atr * 1.5)
+    else:
+        target_price = current_price * 1.05
+        stop_loss = current_price * 0.97
+
+    # Dates
+    today = datetime.now()
+    target_date_min = today + timedelta(days=min_days)
+    target_date_base = today + timedelta(days=base_days)
+    target_date_max = today + timedelta(days=max_days)
+
+    # Risk level
+    risk_level = "TRUNG BÌNH"
+    if volatility_level in ["RẤT CAO", "CAO"] and trend_strength < 2:
+        risk_level = "CAO"
+    elif volatility_level == "RẤT THẤP" and trend_strength >= 2:
+        risk_level = "THẤP"
+
+    return {
+        'base_days': base_days,
+        'min_days': min_days,
+        'max_days': max_days,
+        'recommended_action': recommended_action,
+        'trend_type': trend_type,
+        'trend_strength': trend_strength,
+        'trend_position': trend_position,
+        'volatility_level': volatility_level,
+        'risk_level': risk_level,
+        'target_date_min': target_date_min.strftime('%d/%m/%Y'),
+        'target_date_base': target_date_base.strftime('%d/%m/%Y'),
+        'target_date_max': target_date_max.strftime('%d/%m/%Y'),
+        'target_price': target_price,
+        'stop_loss': stop_loss,
+        'current_price': current_price,
+        'reasons': reasons
+    }
+
+
+def display_holding_recommendation(holding_info):
+    """Hiển thị khuyến nghị"""
+    if holding_info is None:
+        return None
+
+    action_colors = {
+        "NẮM GIỮ DÀI HẠN": "#00c853",
+        "NẮM GIỮ TRUNG HẠN": "#66BB6A",
+        "NẮM GIỮ NGẮN HẠN": "#FFA726",
+        "NẮM GIỮ NGẮN": "#FFA726",
+        "CHỐT LỜI SỚM": "#FF9800",
+        "THEO DÕI SÁT": "#FFC107",
+        "CÂN NHẮC BÁN": "#EF5350",
+        "BÁN NGAY": "#d32f2f"
+    }
+
+    action_color = action_colors.get(holding_info['recommended_action'], "#757575")
+
+    target_percent = ((holding_info['target_price'] - holding_info['current_price']) /
+                      holding_info['current_price'] * 100)
+    stop_loss_percent = ((holding_info['stop_loss'] - holding_info['current_price']) /
+                         holding_info['current_price'] * 100)
+
+    html = f"""
+    <div style="background: linear-gradient(135deg, {action_color} 0%, {action_color}DD 100%); 
+                padding: 25px; border-radius: 15px; color: white; margin: 20px 0;
+                box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
+
+        <h2 style="margin: 0 0 20px 0; font-size: 28px;">
+            🕐 KHUYẾN NGHỊ THỜI GIAN NẮM GIỮ
+        </h2>
+
+        <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 10px; margin: 15px 0;">
+            <h3 style="margin: 0 0 10px 0; font-size: 32px; text-align: center;">
+                {holding_info['recommended_action']}
+            </h3>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin: 20px 0;">
+            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 14px; opacity: 0.9;">Tối thiểu</div>
+                <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{holding_info['min_days']} ngày</div>
+                <div style="font-size: 12px; opacity: 0.8;">đến {holding_info['target_date_min']}</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.2); padding: 15px; border-radius: 8px; text-align: center; 
+                        border: 2px solid rgba(255,255,255,0.5);">
+                <div style="font-size: 14px; opacity: 0.9;">Khuyến nghị</div>
+                <div style="font-size: 28px; font-weight: bold; margin: 5px 0;">{holding_info['base_days']} ngày</div>
+                <div style="font-size: 12px; opacity: 0.8;">đến {holding_info['target_date_base']}</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 14px; opacity: 0.9;">Tối đa</div>
+                <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{holding_info['max_days']} ngày</div>
+                <div style="font-size: 12px; opacity: 0.8;">đến {holding_info['target_date_max']}</div>
+            </div>
+        </div>
+
+        <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 10px; margin: 15px 0;">
+            <h4 style="margin: 0 0 15px 0; font-size: 18px;">📊 MỤC TIÊU & STOP LOSS</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                    <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">🎯 Mục tiêu giá:</div>
+                    <div style="font-size: 22px; font-weight: bold;">
+                        {holding_info['target_price']:,.0f} VND
+                        <span style="font-size: 16px; margin-left: 10px;">({target_percent:+.1f}%)</span>
+                    </div>
+                </div>
+                <div>
+                    <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">🛑 Stop Loss:</div>
+                    <div style="font-size: 22px; font-weight: bold;">
+                        {holding_info['stop_loss']:,.0f} VND
+                        <span style="font-size: 16px; margin-left: 10px;">({stop_loss_percent:.1f}%)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 10px; margin: 15px 0;">
+            <h4 style="margin: 0 0 15px 0; font-size: 18px;">📈 PHÂN TÍCH</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                <div>
+                    <div style="font-size: 13px; opacity: 0.8;">Xu hướng</div>
+                    <div style="font-size: 18px; font-weight: bold;">{holding_info['trend_type']}</div>
+                </div>
+                <div>
+                    <div style="font-size: 13px; opacity: 0.8;">Độ biến động</div>
+                    <div style="font-size: 18px; font-weight: bold;">{holding_info['volatility_level']}</div>
+                </div>
+                <div>
+                    <div style="font-size: 13px; opacity: 0.8;">Rủi ro</div>
+                    <div style="font-size: 18px; font-weight: bold;">{holding_info['risk_level']}</div>
+                </div>
+            </div>
+        </div>
+
+        <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 10px;">
+            <h4 style="margin: 0 0 10px 0; font-size: 18px;">💡 LÝ DO:</h4>
+            <div style="font-size: 15px; line-height: 1.8;">
+                {"<br>".join(holding_info['reasons'])}
+            </div>
+        </div>
+    </div>
+    """
+
+    # ✅ SỬA: RENDER TRỰC TIẾP THAY VÌ RETURN
+    st.markdown(html, unsafe_allow_html=True)
+
+    return html
+
+
+print("✅ Holding Period Module loaded!")
 # ============================================
 # PHẦN 6: HÀM VẼ BIỂU ĐỒ (FIXED)
 # ============================================
@@ -1833,6 +2352,423 @@ def plot_correlation_matrix(stocks_data):
 
 print("✅ Chart plotting functions loaded (FIXED)")
 # ============================================
+# MODULE: KHUYẾN NGHỊ THỜI GIAN NẮM GIỮ CỔ PHIẾU
+# ============================================
+
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+
+
+def calculate_holding_period(df, signal, score, details):
+    """
+    Tính toán thời gian nắm giữ tối ưu dựa trên:
+    1. Xu hướng (ADX, Supertrend, MAs)
+    2. Volatility (ATR, Bollinger Width)
+    3. Momentum (RSI, MACD)
+    4. Patterns & Cycles
+
+    Returns:
+        holding_period: Dict với thông tin chi tiết
+    """
+    if df is None or df.empty or len(df) < 50:
+        return None
+
+    latest = df.iloc[-1]
+
+    # ========================================
+    # BƯỚC 1: XÁC ĐỊNH LOẠI XU HƯỚNG
+    # ========================================
+
+    trend_type = "SIDEWAY"
+    trend_strength = 0
+
+    # Kiểm tra ADX
+    if pd.notna(latest.get('ADX')):
+        adx = latest['ADX']
+        if adx > 40:
+            trend_strength = 3  # Rất mạnh
+        elif adx > 25:
+            trend_strength = 2  # Mạnh
+        elif adx > 20:
+            trend_strength = 1  # Trung bình
+        else:
+            trend_strength = 0  # Yếu/Sideway
+
+    # Kiểm tra Supertrend
+    if pd.notna(latest.get('Supertrend_direction')):
+        if latest['Supertrend_direction'] == 1:
+            trend_type = "TĂNG"
+        elif latest['Supertrend_direction'] == -1:
+            trend_type = "GIẢM"
+
+    # Kiểm tra MAs
+    if pd.notna(latest.get('MA5')) and pd.notna(latest.get('MA20')) and pd.notna(latest.get('MA50')):
+        if latest['MA5'] > latest['MA20'] > latest['MA50']:
+            if trend_type == "SIDEWAY":
+                trend_type = "TĂNG"
+        elif latest['MA5'] < latest['MA20'] < latest['MA50']:
+            if trend_type == "SIDEWAY":
+                trend_type = "GIẢM"
+
+    # ========================================
+    # BƯỚC 2: TÍNH VOLATILITY (Độ biến động)
+    # ========================================
+
+    volatility_level = "TRUNG BÌNH"
+
+    if pd.notna(latest.get('ATR')) and pd.notna(latest.get('close')):
+        atr_percent = (latest['ATR'] / latest['close']) * 100
+
+        if atr_percent > 5:
+            volatility_level = "RẤT CAO"
+        elif atr_percent > 3:
+            volatility_level = "CAO"
+        elif atr_percent > 1.5:
+            volatility_level = "TRUNG BÌNH"
+        else:
+            volatility_level = "THẤP"
+
+    # Kiểm tra Bollinger Width
+    if pd.notna(latest.get('BB_width')):
+        if latest['BB_width'] > 0.15:
+            if volatility_level in ["THẤP", "TRUNG BÌNH"]:
+                volatility_level = "CAO"
+        elif latest['BB_width'] < 0.05:
+            volatility_level = "RẤT THẤP"
+
+    # ========================================
+    # BƯỚC 3: ĐÁNH GIÁ VỊ TRÍ TRONG XU HƯỚNG
+    # ========================================
+
+    trend_position = "GIỮA"
+
+    if pd.notna(latest.get('RSI')):
+        rsi = latest['RSI']
+        if rsi < 30:
+            trend_position = "ĐẦU"  # Vừa oversold, xu hướng mới bắt đầu
+        elif rsi > 70:
+            trend_position = "CUỐI"  # Đã overbought, gần hết xu hướng
+        elif 40 <= rsi <= 60:
+            trend_position = "GIỮA"  # Đang ở giữa xu hướng
+
+    # Kiểm tra MACD
+    if pd.notna(latest.get('MACD')) and pd.notna(latest.get('MACD_signal')):
+        prev = df.iloc[-2]
+        # Golden Cross mới xảy ra
+        if latest['MACD'] > latest['MACD_signal'] and prev['MACD'] <= prev['MACD_signal']:
+            trend_position = "ĐẦU"
+        # Death Cross mới xảy ra
+        elif latest['MACD'] < latest['MACD_signal'] and prev['MACD'] >= prev['MACD_signal']:
+            trend_position = "CUỐI"
+
+    # ========================================
+    # BƯỚC 4: TÍNH TOÁN THỜI GIAN NẮM GIỮ
+    # ========================================
+
+    base_days = 0
+    min_days = 0
+    max_days = 0
+    recommended_action = ""
+    reasons = []
+
+    # === XU HƯỚNG TĂNG ===
+    if trend_type == "TĂNG" and signal in ["MUA MẠNH", "MUA", "MUA (thận trọng)"]:
+
+        if trend_position == "ĐẦU":
+            if trend_strength >= 2:
+                # Xu hướng tăng mạnh, mới bắt đầu
+                base_days = 30
+                min_days = 20
+                max_days = 60
+                recommended_action = "NẮM GIỮ DÀI HẠN"
+                reasons.append("✅ Xu hướng tăng mạnh mới bắt đầu")
+                reasons.append("💰 Còn nhiều tiềm năng tăng trưởng")
+            else:
+                # Xu hướng tăng yếu
+                base_days = 10
+                min_days = 5
+                max_days = 20
+                recommended_action = "NẮM GIỮ NGẮN HẠN"
+                reasons.append("📈 Xu hướng tăng yếu")
+                reasons.append("⚠️ Cần theo dõi sát")
+
+        elif trend_position == "GIỮA":
+            if trend_strength >= 2:
+                # Xu hướng đang ở giữa, vẫn mạnh
+                base_days = 20
+                min_days = 10
+                max_days = 40
+                recommended_action = "NẮM GIỮ TRUNG HẠN"
+                reasons.append("✅ Xu hướng tăng đang ổn định")
+                reasons.append("📊 Có thể tiếp tục tăng")
+            else:
+                base_days = 7
+                min_days = 3
+                max_days = 14
+                recommended_action = "NẮM GIỮ NGẮN"
+                reasons.append("⚠️ Xu hướng không rõ ràng")
+
+        else:  # CUỐI
+            base_days = 3
+            min_days = 1
+            max_days = 7
+            recommended_action = "CHỐT LỜI SỚM"
+            reasons.append("⚠️⚠️ Xu hướng tăng gần hết")
+            reasons.append("💡 Nên chốt lời, đừng tham")
+            reasons.append("📉 RSI/MACD cho thấy sắp đảo chiều")
+
+    # === XU HƯỚNG GIẢM ===
+    elif trend_type == "GIẢM" and signal in ["BÁN", "BÁN (thận trọng)"]:
+        base_days = 0
+        min_days = 0
+        max_days = 0
+        recommended_action = "BÁN NGAY"
+        reasons.append("🚫 Xu hướng giảm đang hoạt động")
+        reasons.append("💡 Không nên nắm giữ")
+        reasons.append("⏰ Bán càng sớm càng tốt để hạn chế thua lỗ")
+
+    # === SIDEWAY / GIỮ ===
+    else:
+        if signal == "GIỮ":
+            base_days = 5
+            min_days = 3
+            max_days = 10
+            recommended_action = "THEO DÕI SÁT"
+            reasons.append("⚠️ Thị trường đang sideway")
+            reasons.append("📊 Chưa có xu hướng rõ ràng")
+            reasons.append("💡 Chờ tín hiệu rõ ràng hơn")
+        else:
+            base_days = 1
+            min_days = 0
+            max_days = 3
+            recommended_action = "CÂN NHẮC BÁN"
+            reasons.append("⚠️ Tín hiệu không rõ ràng")
+            reasons.append("💡 Nên cắt lỗ nếu giá giảm")
+
+    # ========================================
+    # BƯỚC 5: ĐIỀU CHỈNH THEO VOLATILITY
+    # ========================================
+
+    volatility_adjustment = 1.0
+
+    if volatility_level == "RẤT CAO":
+        volatility_adjustment = 0.6  # Giảm thời gian nắm giữ
+        reasons.append("⚠️ Biến động rất cao → Giảm thời gian nắm giữ")
+    elif volatility_level == "CAO":
+        volatility_adjustment = 0.8
+        reasons.append("⚠️ Biến động cao → Cần thận trọng")
+    elif volatility_level == "THẤP":
+        volatility_adjustment = 1.2  # Tăng thời gian nắm giữ
+        reasons.append("✅ Biến động thấp → An toàn hơn")
+    elif volatility_level == "RẤT THẤP":
+        volatility_adjustment = 1.4
+        reasons.append("✅ Biến động rất thấp → Rất an toàn")
+
+    base_days = int(base_days * volatility_adjustment)
+    min_days = int(min_days * volatility_adjustment)
+    max_days = int(max_days * volatility_adjustment)
+
+    # ========================================
+    # BƯỚC 6: ĐIỀU CHỈNH THEO SCORE
+    # ========================================
+
+    if score >= 80:
+        reasons.append("✅✅ Điểm AI rất cao → Tự tin nắm giữ")
+    elif score >= 70:
+        reasons.append("✅ Điểm AI tốt → Có thể nắm giữ")
+    elif score < 50:
+        base_days = max(1, int(base_days * 0.5))
+        reasons.append("⚠️ Điểm AI thấp → Giảm thời gian nắm giữ")
+
+    # ========================================
+    # BƯỚC 7: TÍNH TARGET PRICE (Mục tiêu giá)
+    # ========================================
+
+    current_price = latest['close']
+
+    # Dựa trên ATR và thời gian
+    if pd.notna(latest.get('ATR')):
+        atr = latest['ATR']
+
+        if trend_type == "TĂNG":
+            # Target = Price + (ATR * số ngày * hệ số)
+            target_price = current_price + (atr * (base_days / 5) * 1.5)
+            stop_loss = current_price - (atr * 2)
+        else:
+            target_price = current_price
+            stop_loss = current_price - (atr * 1.5)
+    else:
+        target_price = current_price * 1.05
+        stop_loss = current_price * 0.97
+
+    # ========================================
+    # BƯỚC 8: XÁC ĐỊNH MỐC THỜI GIAN CỤ THỂ
+    # ========================================
+
+    today = datetime.now()
+    target_date_min = today + timedelta(days=min_days)
+    target_date_base = today + timedelta(days=base_days)
+    target_date_max = today + timedelta(days=max_days)
+
+    # ========================================
+    # BƯỚC 9: ĐÁNH GIÁ RỦI RO
+    # ========================================
+
+    risk_level = "TRUNG BÌNH"
+
+    if volatility_level in ["RẤT CAO", "CAO"] and trend_strength < 2:
+        risk_level = "CAO"
+    elif volatility_level == "RẤT THẤP" and trend_strength >= 2:
+        risk_level = "THẤP"
+
+    # ========================================
+    # KẾT QUẢ
+    # ========================================
+
+    return {
+        'base_days': base_days,
+        'min_days': min_days,
+        'max_days': max_days,
+        'recommended_action': recommended_action,
+        'trend_type': trend_type,
+        'trend_strength': trend_strength,
+        'trend_position': trend_position,
+        'volatility_level': volatility_level,
+        'risk_level': risk_level,
+        'target_date_min': target_date_min.strftime('%d/%m/%Y'),
+        'target_date_base': target_date_base.strftime('%d/%m/%Y'),
+        'target_date_max': target_date_max.strftime('%d/%m/%Y'),
+        'target_price': target_price,
+        'stop_loss': stop_loss,
+        'current_price': current_price,
+        'reasons': reasons
+    }
+
+
+# ============================================
+# HÀM HIỂN THỊ KHUYẾN NGHỊ
+# ============================================
+
+def display_holding_recommendation(holding_info):
+    """
+    Tạo HTML để hiển thị khuyến nghị thời gian nắm giữ
+    """
+    if holding_info is None:
+        return None
+
+    # Màu sắc theo action
+    action_colors = {
+        "NẮM GIỮ DÀI HẠN": "#00c853",
+        "NẮM GIỮ TRUNG HẠN": "#66BB6A",
+        "NẮM GIỮ NGẮN HẠN": "#FFA726",
+        "NẮM GIỮ NGẮN": "#FFA726",
+        "CHỐT LỜI SỚM": "#FF9800",
+        "THEO DÕI SÁT": "#FFC107",
+        "CÂN NHẮC BÁN": "#EF5350",
+        "BÁN NGAY": "#d32f2f"
+    }
+
+    action_color = action_colors.get(holding_info['recommended_action'], "#757575")
+
+    # Tính % target và stop loss
+    target_percent = ((holding_info['target_price'] - holding_info['current_price']) /
+                      holding_info['current_price'] * 100)
+    stop_loss_percent = ((holding_info['stop_loss'] - holding_info['current_price']) /
+                         holding_info['current_price'] * 100)
+
+    html = f"""
+    <div style="background: linear-gradient(135deg, {action_color} 0%, {action_color}DD 100%); 
+                padding: 25px; border-radius: 15px; color: white; margin: 20px 0;
+                box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
+
+        <h2 style="margin: 0 0 20px 0; font-size: 28px;">
+            🕐 KHUYẾN NGHỊ THỜI GIAN NẮM GIỮ
+        </h2>
+
+        <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 10px; margin: 15px 0;">
+            <h3 style="margin: 0 0 10px 0; font-size: 32px; text-align: center;">
+                {holding_info['recommended_action']}
+            </h3>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin: 20px 0;">
+            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 14px; opacity: 0.9;">Tối thiểu</div>
+                <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{holding_info['min_days']} ngày</div>
+                <div style="font-size: 12px; opacity: 0.8;">đến {holding_info['target_date_min']}</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.2); padding: 15px; border-radius: 8px; text-align: center; 
+                        border: 2px solid rgba(255,255,255,0.5);">
+                <div style="font-size: 14px; opacity: 0.9;">Khuyến nghị</div>
+                <div style="font-size: 28px; font-weight: bold; margin: 5px 0;">{holding_info['base_days']} ngày</div>
+                <div style="font-size: 12px; opacity: 0.8;">đến {holding_info['target_date_base']}</div>
+            </div>
+            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 14px; opacity: 0.9;">Tối đa</div>
+                <div style="font-size: 24px; font-weight: bold; margin: 5px 0;">{holding_info['max_days']} ngày</div>
+                <div style="font-size: 12px; opacity: 0.8;">đến {holding_info['target_date_max']}</div>
+            </div>
+        </div>
+
+        <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 10px; margin: 15px 0;">
+            <h4 style="margin: 0 0 15px 0; font-size: 18px;">📊 MỤC TIÊU & STOP LOSS</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                <div>
+                    <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">🎯 Mục tiêu giá:</div>
+                    <div style="font-size: 22px; font-weight: bold;">
+                        {holding_info['target_price']:,.0f} VND
+                        <span style="font-size: 16px; margin-left: 10px;">({target_percent:+.1f}%)</span>
+                    </div>
+                </div>
+                <div>
+                    <div style="font-size: 14px; opacity: 0.9; margin-bottom: 5px;">🛑 Stop Loss:</div>
+                    <div style="font-size: 22px; font-weight: bold;">
+                        {holding_info['stop_loss']:,.0f} VND
+                        <span style="font-size: 16px; margin-left: 10px;">({stop_loss_percent:.1f}%)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 10px; margin: 15px 0;">
+            <h4 style="margin: 0 0 15px 0; font-size: 18px;">📈 PHÂN TÍCH THỊ TRƯỜNG</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                <div>
+                    <div style="font-size: 13px; opacity: 0.8;">Xu hướng</div>
+                    <div style="font-size: 18px; font-weight: bold;">{holding_info['trend_type']}</div>
+                </div>
+                <div>
+                    <div style="font-size: 13px; opacity: 0.8;">Độ biến động</div>
+                    <div style="font-size: 18px; font-weight: bold;">{holding_info['volatility_level']}</div>
+                </div>
+                <div>
+                    <div style="font-size: 13px; opacity: 0.8;">Rủi ro</div>
+                    <div style="font-size: 18px; font-weight: bold;">{holding_info['risk_level']}</div>
+                </div>
+            </div>
+        </div>
+
+        <div style="background: rgba(255,255,255,0.15); padding: 20px; border-radius: 10px; margin: 15px 0;">
+            <h4 style="margin: 0 0 10px 0; font-size: 18px;">💡 LÝ DO CHI TIẾT:</h4>
+            <div style="font-size: 15px; line-height: 1.8;">
+                {"<br>".join(holding_info['reasons'])}
+            </div>
+        </div>
+
+        <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; 
+                    margin-top: 20px; font-size: 13px; opacity: 0.9;">
+            ⚠️ <b>Lưu ý:</b> Đây là khuyến nghị dựa trên phân tích kỹ thuật. 
+            Thực tế thị trường có thể khác biệt. Luôn đặt stop loss và theo dõi sát.
+        </div>
+    </div>
+    """
+
+    return html
+
+
+print("✅ Holding Period Recommendation Module loaded!")
+# ============================================
 # PHẦN 7: UI CHÍNH - GIAO DIỆN HOÀN CHỈNH (FIXED)
 # ============================================
 
@@ -2046,6 +2982,11 @@ if mode == "🔍 Phân tích chi tiết":
             </div>
             """, unsafe_allow_html=True)
 
+        # HOLDING PERIOD RECOMMENDATION - MỚI!
+        holding_info = calculate_holding_period(df, signal, score, details)
+        if holding_info:
+            display_holding_recommendation(holding_info)  # ✅ GỌI TRỰC TIẾP
+
         st.markdown("---")
 
         # Tabs
@@ -2068,13 +3009,40 @@ if mode == "🔍 Phân tích chi tiết":
                 st.markdown(f"**🎯 Tín hiệu: {signal}**")
                 st.markdown(f"**⭐ Điểm: {score}/100**")
                 st.markdown(f"**⏰ Khuyến nghị: {term}**")
+
+                # Hiển thị VETO nếu có
+                if '🚫' in reason or 'VETO' in reason:
+                    st.error("⚠️⚠️ CÓ TÍN HIỆU CẢNH BÁO NGHIÊM TRỌNG!")
+
                 st.markdown("---")
                 st.markdown("**💡 Chi tiết điểm:**")
                 for key, value in details.items():
-                    st.text(f"{key}: {value} điểm")
+                    if isinstance(value, (int, float)):
+                        st.text(f"{key}: {value} điểm")
+                    else:
+                        st.text(f"{key}: {value}")
             with col2:
-                st.markdown("**🔍 Lý do:**")
-                st.text(reason)
+                st.markdown("**🔍 Lý do chi tiết:**")
+
+                # Phân loại lý do
+                positive_reasons = [r for r in reason.split('\n') if '✅' in r or '💰' in r]
+                negative_reasons = [r for r in reason.split('\n') if '⚠️' in r or '🚫' in r]
+                neutral_reasons = [r for r in reason.split('\n') if '📈' in r or '📊' in r]
+
+                if negative_reasons:
+                    st.markdown("**🔴 Tín hiệu tiêu cực:**")
+                    for r in negative_reasons:
+                        st.text(r)
+
+                if positive_reasons:
+                    st.markdown("**🟢 Tín hiệu tích cực:**")
+                    for r in positive_reasons:
+                        st.text(r)
+
+                if neutral_reasons:
+                    st.markdown("**🟡 Tín hiệu trung lập:**")
+                    for r in neutral_reasons:
+                        st.text(r)
 
         with tab4:
             st.subheader("💼 Dữ liệu Fundamental")
