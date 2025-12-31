@@ -1042,8 +1042,405 @@ def calculate_advanced_indicators(df):
             (body > prev_body)
     ).astype(int)
 
+    def calculate_advanced_indicators(df):
+        """Tính toán 60+ chỉ báo kỹ thuật"""
+        if df is None or df.empty:
+            return df
+
+        # ========== GIỮ NGUYÊN TẤT CẢ CODE CŨ ==========
+        # (từ MA5 đến Bearish_Engulfing - KHÔNG XÓA GÌ!)
+        df['MA5'] = df['close'].rolling(window=5).mean()
+        # ... [TẤT CẢ CODE CŨ] ...
+        df['Bearish_Engulfing'] = (...)
+
+        # ========== THÊM MỚI BÊN DƯỚI ĐÂY (SAU CODE CŨ) ==========
+
+        # CHECK: Đảm bảo RSI đã được tính
+        if 'RSI' not in df.columns:
+            print("⚠️ WARNING: RSI not calculated yet!")
+            return df
+
+        # ========== TIME-BASED FEATURES ==========
+        try:
+            df['day_of_week'] = df.index.dayofweek
+            df['day_of_month'] = df.index.day
+            df['week_of_year'] = df.index.isocalendar().week
+            df['month'] = df.index.month
+            df['quarter'] = df.index.quarter
+
+            df['is_monday'] = (df.index.dayofweek == 0).astype(int)
+            df['is_friday'] = (df.index.dayofweek == 4).astype(int)
+            df['is_month_start'] = (df.index.day <= 5).astype(int)
+            df['is_month_end'] = (df.index.day >= 25).astype(int)
+            df['is_quarter_end'] = df.index.month.isin([3, 6, 9, 12]).astype(int)
+        except Exception as e:
+            print(f"⚠️ Time features error: {e}")
+
+        # ========== LAGGED FEATURES ==========
+        try:
+            for lag in [1, 2, 3, 5, 7]:
+                df[f'return_lag_{lag}'] = df['close'].pct_change(lag)
+                df[f'volume_lag_{lag}'] = df['volume'].shift(lag)
+
+                # Safe RSI lag (check if exists)
+                if 'RSI' in df.columns and not df['RSI'].isna().all():
+                    df[f'rsi_lag_{lag}'] = df['RSI'].shift(lag)
+        except Exception as e:
+            print(f"⚠️ Lagged features error: {e}")
+
+        # ========== ROLLING STATISTICS ==========
+        try:
+            windows = [5, 10, 20, 50]
+            for window in windows:
+                df[f'return_mean_{window}'] = df['close'].pct_change().rolling(window).mean()
+                df[f'return_std_{window}'] = df['close'].pct_change().rolling(window).std()
+                df[f'volume_mean_{window}'] = df['volume'].rolling(window).mean()
+                df[f'volume_std_{window}'] = df['volume'].rolling(window).std()
+        except Exception as e:
+            print(f"⚠️ Rolling stats error: {e}")
+
+        # ========== MOMENTUM VARIATIONS ==========
+        try:
+            for period in [3, 5, 10, 20]:
+                df[f'roc_{period}'] = df['close'].pct_change(period) * 100
+
+            df['momentum_10'] = df['close'] - df['close'].shift(10)
+            df['momentum_20'] = df['close'] - df['close'].shift(20)
+        except Exception as e:
+            print(f"⚠️ Momentum error: {e}")
+
+        # ========== VOLATILITY FEATURES ==========
+        try:
+            # Parkinson volatility
+            log_hl = np.log(df['high'] / df['low'].replace(0, np.nan))
+            df['parkinson_vol'] = np.sqrt(
+                1 / (4 * np.log(2)) * (log_hl ** 2).rolling(20).mean()
+            )
+
+            # ATR percentage
+            if 'ATR' in df.columns and not df['ATR'].isna().all():
+                df['atr_pct'] = df['ATR'] / df['close'].replace(0, np.nan) * 100
+        except Exception as e:
+            print(f"⚠️ Volatility error: {e}")
+
+        # ========== TREND STRENGTH ==========
+        try:
+            # MA alignment
+            ma_cols = ['MA5', 'MA20', 'MA50']
+            if all(col in df.columns for col in ma_cols):
+                df['ma_alignment'] = (
+                        (df['MA5'] > df['MA20']).astype(int) +
+                        (df['MA20'] > df['MA50']).astype(int) +
+                        (df['MA50'] > df['MA200']).fillna(0).astype(int)
+                )
+
+            df['uptrend_days'] = (df['close'] > df['close'].shift(1)).rolling(20).sum()
+            df['downtrend_days'] = (df['close'] < df['close'].shift(1)).rolling(20).sum()
+
+            # Distance from MAs
+            for ma in [5, 20, 50, 200]:
+                if f'MA{ma}' in df.columns:
+                    df[f'dist_from_ma{ma}'] = (
+                            (df['close'] - df[f'MA{ma}']) / df[f'MA{ma}'].replace(0, np.nan) * 100
+                    )
+        except Exception as e:
+            print(f"⚠️ Trend strength error: {e}")
+
+        # ========== DIVERGENCE DETECTION ==========
+        try:
+            df['price_momentum'] = df['close'].diff(5)
+
+            if 'RSI' in df.columns:
+                df['rsi_momentum'] = df['RSI'].diff(5)
+                df['bullish_divergence'] = (
+                        (df['price_momentum'] < 0) & (df['rsi_momentum'] > 0)
+                ).astype(int)
+                df['bearish_divergence'] = (
+                        (df['price_momentum'] > 0) & (df['rsi_momentum'] < 0)
+                ).astype(int)
+        except Exception as e:
+            print(f"⚠️ Divergence error: {e}")
+
+        # ========== PATTERN RECOGNITION ==========
+        try:
+            df['higher_high'] = (df['high'] > df['high'].shift(1)).rolling(5).sum()
+            df['lower_low'] = (df['low'] < df['low'].shift(1)).rolling(5).sum()
+            df['consecutive_up'] = (df['close'] > df['close'].shift(1)).astype(int).rolling(10).sum()
+            df['consecutive_down'] = (df['close'] < df['close'].shift(1)).astype(int).rolling(10).sum()
+        except Exception as e:
+            print(f"⚠️ Pattern error: {e}")
+
+        # ========== VOLUME ANALYSIS ==========
+        try:
+            df['volume_change'] = df['volume'].pct_change()
+            df['volume_momentum'] = df['volume'] - df['volume'].shift(5)
+            df['pv_corr_20'] = df['close'].rolling(20).corr(df['volume'])
+
+            if 'OBV' in df.columns:
+                df['obv_change'] = df['OBV'].pct_change()
+                df['obv_trend'] = (df['OBV'] > df['OBV'].shift(5)).astype(int)
+        except Exception as e:
+            print(f"⚠️ Volume error: {e}")
+
+        # ========== RELATIVE STRENGTH ==========
+        try:
+            df['rs_vs_52w_high'] = df['close'] / df['high'].rolling(252).max()
+            df['rs_vs_52w_low'] = df['close'] / df['low'].rolling(252).min()
+            df['dist_52w_high'] = (df['high'].rolling(252).max() - df['close']) / df['close'].replace(0, np.nan)
+            df['dist_52w_low'] = (df['close'] - df['low'].rolling(252).min()) / df['close'].replace(0, np.nan)
+        except Exception as e:
+            print(f"⚠️ Relative strength error: {e}")
+
+        # ========== FIBONACCI LEVELS ==========
+        try:
+            high_20 = df['high'].rolling(20).max()
+            low_20 = df['low'].rolling(20).min()
+
+            for level in [0.382, 0.5, 0.618]:
+                fib_level = low_20 + (high_20 - low_20) * level
+                df[f'near_fib_{int(level * 1000)}'] = (
+                        abs(df['close'] - fib_level) / df['close'].replace(0, np.nan) < 0.01
+                ).astype(int)
+        except Exception as e:
+            print(f"⚠️ Fibonacci error: {e}")
+
+        # ========== EFFICIENCY RATIO ==========
+        try:
+            change = abs(df['close'] - df['close'].shift(10))
+            volatility = abs(df['close'] - df['close'].shift(1)).rolling(10).sum()
+            df['efficiency_ratio'] = change / volatility.replace(0, np.nan)
+        except Exception as e:
+            print(f"⚠️ Efficiency error: {e}")
+
+        # ========== MULTI-INDICATOR CONFLUENCE ==========
+        try:
+            conditions_bull = []
+            conditions_bear = []
+
+            if 'RSI' in df.columns:
+                conditions_bull.append((df['RSI'] < 30).astype(int))
+                conditions_bear.append((df['RSI'] > 70).astype(int))
+
+            if 'MACD' in df.columns and 'MACD_signal' in df.columns:
+                conditions_bull.append((df['MACD'] > df['MACD_signal']).astype(int))
+                conditions_bear.append((df['MACD'] < df['MACD_signal']).astype(int))
+
+            if 'Stoch_K' in df.columns:
+                conditions_bull.append((df['Stoch_K'] < 20).astype(int))
+                conditions_bear.append((df['Stoch_K'] > 80).astype(int))
+
+            if 'Williams_R' in df.columns:
+                conditions_bull.append((df['Williams_R'] < -80).astype(int))
+                conditions_bear.append((df['Williams_R'] > -20).astype(int))
+
+            if 'MFI' in df.columns:
+                conditions_bull.append((df['MFI'] < 30).astype(int))
+                conditions_bear.append((df['MFI'] > 70).astype(int))
+
+            if conditions_bull:
+                df['bullish_signals'] = sum(conditions_bull)
+            if conditions_bear:
+                df['bearish_signals'] = sum(conditions_bear)
+        except Exception as e:
+            print(f"⚠️ Confluence error: {e}")
+
+        # ========== REGIME CLASSIFICATION ==========
+        try:
+            if 'ATR' in df.columns and not df['ATR'].isna().all():
+                df['vol_regime'] = pd.qcut(
+                    df['ATR'],
+                    q=3,
+                    labels=[0, 1, 2],
+                    duplicates='drop'
+                )
+
+            if 'ADX' in df.columns and not df['ADX'].isna().all():
+                df['trend_regime'] = pd.cut(
+                    df['ADX'],
+                    bins=[0, 20, 40, 100],
+                    labels=[0, 1, 2]
+                )
+        except Exception as e:
+            print(f"⚠️ Regime error: {e}")
+
+        # ========== KẾT THÚC - RETURN ==========
+        return df
+
+    print("✅ Enhanced indicators with 130+ features loaded (SAFE VERSION)!")
+
     return df
 
+# # ============================================
+# # PHẦN 4B: CHỈ BÁO + FEATURES NÂNG CAO (IMPROVED)
+# # ============================================
+#
+# def calculate_advanced_indicators(df):
+#     """
+#     Tính toán 60+ chỉ báo kỹ thuật + 50+ features mới
+#     IMPROVED VERSION với feature engineering
+#     """
+#     if df is None or df.empty:
+#         return df
+#
+#     # ========== GIỮ NGUYÊN TẤT CẢ 78 CHỈ BÁO CŨ ==========
+#     # (Copy toàn bộ code tính indicators cũ từ MA5 đến Bearish_Engulfing)
+#     # ... [GIỮ NGUYÊN CODE CŨ] ...
+#
+#     # ========== THÊM MỚI: TIME-BASED FEATURES ==========
+#     df['day_of_week'] = df.index.dayofweek
+#     df['day_of_month'] = df.index.day
+#     df['week_of_year'] = df.index.isocalendar().week
+#     df['month'] = df.index.month
+#     df['quarter'] = df.index.quarter
+#
+#     # Hiệu ứng ngày đặc biệt
+#     df['is_monday'] = (df.index.dayofweek == 0).astype(int)
+#     df['is_friday'] = (df.index.dayofweek == 4).astype(int)
+#     df['is_month_start'] = (df.index.day <= 5).astype(int)
+#     df['is_month_end'] = (df.index.day >= 25).astype(int)
+#     df['is_quarter_end'] = df.index.month.isin([3, 6, 9, 12]).astype(int)
+#
+#     # ========== THÊM MỚI: LAGGED FEATURES ==========
+#     for lag in [1, 2, 3, 5, 7]:
+#         df[f'return_lag_{lag}'] = df['close'].pct_change(lag)
+#         df[f'volume_lag_{lag}'] = df['volume'].shift(lag)
+#         df[f'rsi_lag_{lag}'] = df['RSI'].shift(lag)
+#
+#     # ========== THÊM MỚI: ROLLING STATISTICS ==========
+#     windows = [5, 10, 20, 50]
+#     for window in windows:
+#         # Return statistics
+#         df[f'return_mean_{window}'] = df['close'].pct_change().rolling(window).mean()
+#         df[f'return_std_{window}'] = df['close'].pct_change().rolling(window).std()
+#
+#         # Volume statistics
+#         df[f'volume_mean_{window}'] = df['volume'].rolling(window).mean()
+#         df[f'volume_std_{window}'] = df['volume'].rolling(window).std()
+#
+#     # ========== THÊM MỚI: MOMENTUM VARIATIONS ==========
+#     for period in [3, 5, 10, 20]:
+#         df[f'roc_{period}'] = df['close'].pct_change(period) * 100
+#
+#     df['momentum_10'] = df['close'] - df['close'].shift(10)
+#     df['momentum_20'] = df['close'] - df['close'].shift(20)
+#
+#     # ========== THÊM MỚI: VOLATILITY FEATURES ==========
+#     # Parkinson volatility
+#     df['parkinson_vol'] = np.sqrt(
+#         1 / (4 * np.log(2)) * ((np.log(df['high'] / df['low'])) ** 2).rolling(20).mean()
+#     )
+#
+#     # ATR percentage
+#     df['atr_pct'] = df['ATR'] / df['close'] * 100
+#
+#     # ========== THÊM MỚI: TREND STRENGTH ==========
+#     # MA alignment score (0-3)
+#     df['ma_alignment'] = (
+#             (df['MA5'] > df['MA20']).astype(int) +
+#             (df['MA20'] > df['MA50']).astype(int) +
+#             (df['MA50'] > df['MA200']).astype(int)
+#     )
+#
+#     # Trend consistency
+#     df['uptrend_days'] = (df['close'] > df['close'].shift(1)).rolling(20).sum()
+#     df['downtrend_days'] = (df['close'] < df['close'].shift(1)).rolling(20).sum()
+#
+#     # Distance from MAs (%)
+#     for ma in [5, 20, 50, 200]:
+#         if f'MA{ma}' in df.columns:
+#             df[f'dist_from_ma{ma}'] = ((df['close'] - df[f'MA{ma}']) / df[f'MA{ma}'] * 100)
+#
+#     # ========== THÊM MỚI: DIVERGENCE DETECTION ==========
+#     # Price-RSI divergence (đơn giản hóa)
+#     df['price_momentum'] = df['close'].diff(5)
+#     df['rsi_momentum'] = df['RSI'].diff(5)
+#     df['bullish_divergence'] = (
+#             (df['price_momentum'] < 0) & (df['rsi_momentum'] > 0)
+#     ).astype(int)
+#     df['bearish_divergence'] = (
+#             (df['price_momentum'] > 0) & (df['rsi_momentum'] < 0)
+#     ).astype(int)
+#
+#     # ========== THÊM MỚI: PATTERN RECOGNITION ==========
+#     # Higher highs / Lower lows
+#     df['higher_high'] = (df['high'] > df['high'].shift(1)).rolling(5).sum()
+#     df['lower_low'] = (df['low'] < df['low'].shift(1)).rolling(5).sum()
+#
+#     # Consecutive up/down days
+#     df['consecutive_up'] = (df['close'] > df['close'].shift(1)).astype(int).rolling(10).sum()
+#     df['consecutive_down'] = (df['close'] < df['close'].shift(1)).astype(int).rolling(10).sum()
+#
+#     # ========== THÊM MỚI: VOLUME ANALYSIS ==========
+#     df['volume_change'] = df['volume'].pct_change()
+#     df['volume_momentum'] = df['volume'] - df['volume'].shift(5)
+#
+#     # Price-Volume correlation
+#     df['pv_corr_20'] = df['close'].rolling(20).corr(df['volume'])
+#
+#     # OBV analysis
+#     df['obv_change'] = df['OBV'].pct_change()
+#     df['obv_trend'] = (df['OBV'] > df['OBV'].shift(5)).astype(int)
+#
+#     # ========== THÊM MỚI: RELATIVE STRENGTH ==========
+#     # So với 52 tuần
+#     df['rs_vs_52w_high'] = df['close'] / df['high'].rolling(252).max()
+#     df['rs_vs_52w_low'] = df['close'] / df['low'].rolling(252).min()
+#
+#     df['dist_52w_high'] = (df['high'].rolling(252).max() - df['close']) / df['close']
+#     df['dist_52w_low'] = (df['close'] - df['low'].rolling(252).min()) / df['close']
+#
+#     # ========== THÊM MỚI: FIBONACCI LEVELS ==========
+#     high_20 = df['high'].rolling(20).max()
+#     low_20 = df['low'].rolling(20).min()
+#
+#     for level in [0.382, 0.5, 0.618]:
+#         fib_level = low_20 + (high_20 - low_20) * level
+#         df[f'near_fib_{int(level * 1000)}'] = (
+#                 abs(df['close'] - fib_level) / df['close'] < 0.01
+#         ).astype(int)
+#
+#     # ========== THÊM MỚI: EFFICIENCY RATIO ==========
+#     change = abs(df['close'] - df['close'].shift(10))
+#     volatility = abs(df['close'] - df['close'].shift(1)).rolling(10).sum()
+#     df['efficiency_ratio'] = change / volatility.replace(0, np.nan)
+#
+#     # ========== THÊM MỚI: MULTI-INDICATOR CONFLUENCE ==========
+#     df['bullish_signals'] = (
+#             (df['RSI'] < 30).astype(int) +
+#             (df['MACD'] > df['MACD_signal']).astype(int) +
+#             (df['Stoch_K'] < 20).astype(int) +
+#             (df['Williams_R'] < -80).astype(int) +
+#             (df['MFI'] < 30).astype(int)
+#     )
+#
+#     df['bearish_signals'] = (
+#             (df['RSI'] > 70).astype(int) +
+#             (df['MACD'] < df['MACD_signal']).astype(int) +
+#             (df['Stoch_K'] > 80).astype(int) +
+#             (df['Williams_R'] > -20).astype(int) +
+#             (df['MFI'] > 70).astype(int)
+#     )
+#
+#     # ========== THÊM MỚI: REGIME CLASSIFICATION ==========
+#     # Volatility regime
+#     df['vol_regime'] = pd.qcut(
+#         df['ATR'],
+#         q=3,
+#         labels=[0, 1, 2],
+#         duplicates='drop'
+#     )
+#
+#     # Trend regime
+#     df['trend_regime'] = pd.cut(
+#         df['ADX'],
+#         bins=[0, 20, 40, 100],
+#         labels=[0, 1, 2]
+#     )
+#
+#     return df
+#
+#
+# print("✅ Enhanced indicators with 130+ features loaded!")
 
 # ============================================
 # 4C: DỰ ĐOÁN CẢI TIẾN
@@ -2331,7 +2728,7 @@ from datetime import datetime
 # Lấy thống kê visitor
 visitor_stats = get_visitor_stats()
 
-st.title("📊 PHÂN TÍCH CỔ PHIẾU VIỆT NAM PRO")
+st.title("📊 PHÂN TÍCH CỔ PHIẾU VIỆT NAM")
 st.markdown(f"""
 ### {len(ALL_VN_STOCKS)}+ mã cổ phiếu | 20+ chỉ báo | AI/ML Prediction | Phân tích dòng tiền
 """)
@@ -2944,3 +3341,45 @@ st.info("""
 """)
 
 print("✅ App UI loaded successfully!")
+
+# ============================================
+# DEBUG: KIỂM TRA FEATURES MỚI
+# ============================================
+if __name__ == "__main__":
+    import sys
+
+    print("\n" + "=" * 60)
+    print("🧪 TESTING ENHANCED FEATURES...")
+    print("=" * 60)
+
+    test_df, _ = get_stock_data("VCB", period='1y')
+
+    if test_df is not None:
+        print(f"✅ Data loaded: {len(test_df)} rows")
+
+        test_df = calculate_advanced_indicators(test_df)
+
+        print(f"\n📊 Total columns: {len(test_df.columns)}")
+
+        # Check new features
+        new_features = [
+            'day_of_week', 'return_lag_1', 'return_mean_20',
+            'roc_10', 'parkinson_vol', 'ma_alignment',
+            'bullish_signals', 'uptrend_days'
+        ]
+
+        print("\n🔍 Checking new features:")
+        for feat in new_features:
+            if feat in test_df.columns:
+                val = test_df[feat].iloc[-1]
+                print(f"  ✅ {feat}: {val:.2f}" if not pd.isna(val) else f"  ⚠️ {feat}: NaN")
+            else:
+                print(f"  ❌ {feat}: MISSING")
+
+        print("\n" + "=" * 60)
+        print("✅ TEST COMPLETED!")
+        print("=" * 60 + "\n")
+    else:
+        print("❌ Cannot load test data")
+
+    sys.exit(0)  # Dừng ở đây, không chạy Streamlit app
