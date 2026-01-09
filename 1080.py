@@ -2730,7 +2730,7 @@ visitor_stats = get_visitor_stats()
 
 st.title("📊 PHÂN TÍCH CỔ PHIẾU VIỆT NAM")
 st.markdown(f"""
-### {len(ALL_VN_STOCKS)}+ mã cổ phiếu | 20+ chỉ báo | AI/ML Prediction | Phân tích dòng tiền
+### {len(ALL_VN_STOCKS)} mã cổ phiếu | 20+ chỉ báo | AI/ML Prediction | Phân tích dòng tiền
 """)
 
 # ============================================
@@ -3093,8 +3093,8 @@ elif mode == "🚀 Quét nhanh":
                             'Tin cậy': f"{ml_conf * 100:.0f}%"
                         })
 
-                        if len(results) >= max_results:
-                            break
+
+
             except:
                 pass
 
@@ -3105,14 +3105,15 @@ elif mode == "🚀 Quét nhanh":
 
         if results:
             result_df = pd.DataFrame(results).sort_values('Điểm', ascending=False)
-            st.success(f"✅ Tìm thấy {len(result_df)} cổ phiếu tiềm năng!")
+            result_df = result_df.head(max_results)  # ← THÊM DÒNG NÀY
+            st.success(f"✅ Tìm thấy {len(result_df)}/{len(results)} cổ phiếu tiềm năng!")  # ← SỬA DÒNG NÀY
             st.dataframe(result_df, use_container_width=True, height=600)
 
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("🎯 Điểm TB", f"{result_df['Điểm'].mean():.1f}")
             col2.metric("⭐ Cao nhất", f"{result_df['Điểm'].max():.0f}")
             col3.metric("📊 MUA", len(result_df[result_df['Tín hiệu'].str.contains('MUA')]))
-            col4.metric("🤖 ML TĂNG", len(result_df[result_df['ML'] == 'TĂNG']))
+            col4.metric("🤖 ML TĂNG", len(result_df[result_df['ML'].str.contains('TĂNG', na=False)]))
 
             csv = result_df.to_csv(index=False, encoding='utf-8-sig')
             st.download_button("📥 Tải CSV", csv, f"scan_{datetime.now():%Y%m%d_%H%M}.csv", "text/csv")
